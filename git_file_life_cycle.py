@@ -211,18 +211,13 @@ class GitFileLifecycle:
                 f"Error parsing raw diff in commit {commit_hash[:8]}: {line[:100]}... Error: {e}"
             )
             return None
-
+    ##
     def get_commit_changes(self, commit_hash):
         """
         Get all file changes using --raw format.
-
-        --raw provides structured output with:
-        - File modes (permissions)
-        - Object SHAs (Git's internal IDs)
-        - Status letter + optional score
-        - File paths
-
-        This is Git's native structured format, not text parsing!
+        
+        FIXED: Now properly handles rename detection by matching --numstat's
+        '=>' notation with --raw output's old_path -> new_path mappings.
         """
         output = self.run_git_command(
             "show",
@@ -240,14 +235,26 @@ class GitFileLifecycle:
 
         # Build mappings from --raw output first
         raw_changes = {}
+        old_to_new_path_map = {}  # NEW: Track path renames
+        
         for line in lines:
             if line.startswith(":"):
                 parsed = self.parse_raw_diff_line(line, commit_hash)
                 if parsed:
-                    # Use the final path as the key
-                    key_path = parsed.get("new_path") or parsed.get("path")
-                    if key_path:
-                        raw_changes[key_path] = parsed
+                    # For renamed files, track both old and new paths
+                    if parsed.get("status") == "renamed":
+                        old_path = parsed.get("old_path")
+                        new_path = parsed.get("new_path")
+                        if old_path and new_path:
+                            # Map both paths to the same change object
+                            raw_changes[old_path] = parsed
+                            raw_changes[new_path] = parsed
+                            old_to_new_path_map[old_path] = new_path
+                    else:
+                        # For other changes, use the path as key
+                        key_path = parsed.get("new_path") or parsed.get("path")
+                        if key_path:
+                            raw_changes[key_path] = parsed
 
         # Then process --numstat output
         for line in lines:
@@ -260,8 +267,51 @@ class GitFileLifecycle:
                 deletions_str = parts[1]
                 filepath = parts[2]
 
-                # Get the corresponding raw change
-                raw_change = raw_changes.get(filepath, {})
+                # NEW: Handle --numstat's '=>' notation for renames
+                # Git's --numstat shows: "0  0  old_path => new_path"
+                # We need to match this with the --raw entry
+                raw_change = {}
+                
+                if " => " in filepath or "=> " in filepath or " =>" in filepath:
+                    # This is a renamed file in --numstat format
+                    # Extract old and new paths from the compact notation
+                    
+                    # Handle both formats:
+                    # 1. Simple: "old.txt => new.txt"
+                    # 2. Compact: "{old_dir => new_dir}/file.txt"
+                    
+                    # For now, try to find matching raw entry by checking both
+                    # old and new path possibilities
+                    matched = False
+                    for raw_path, raw_data in raw_changes.items():
+                        if raw_data.get("status") == "renamed":
+                            # Check if this raw rename matches our numstat line
+                            # The filepath in numstat might be in compact form
+                            old_p = raw_data.get("old_path", "")
+                            new_p = raw_data.get("new_path", "")
+                            
+                            # Try to match the numstat notation
+                            if old_p and new_p:
+                                # Simple case: exact match of "old => new"
+                                if filepath == f"{old_p} => {new_p}":
+                                    raw_change = raw_data
+                                    filepath = new_p  # Use new_path as primary filepath
+                                    matched = True
+                                    break
+                                # Git's compact notation case
+                                elif self._matches_compact_notation(filepath, old_p, new_p):
+                                    raw_change = raw_data
+                                    filepath = new_p  # Use new_path as primary filepath
+                                    matched = True
+                                    break
+                    
+                    if not matched:
+                        # If we couldn't match it, keep the original filepath
+                        # but mark it for investigation
+                        raw_change = {"status": "renamed_unmatched"}
+                else:
+                    # Regular file (not renamed), look up normally
+                    raw_change = raw_changes.get(filepath, {})
 
                 # Handle binary files
                 is_binary = additions_str == "-" and deletions_str == "-"
@@ -287,6 +337,45 @@ class GitFileLifecycle:
 
         return changes
 
+
+    def _matches_compact_notation(self, numstat_path, old_path, new_path):
+        """
+        Helper to check if a numstat compact notation matches old_path -> new_path.
+        
+        Git uses compact notation like:
+        - "{src => packages/excalidraw}/App.tsx" for "src/App.tsx => packages/excalidraw/App.tsx"
+        - "file.{txt => md}" for "file.txt => file.md"
+        """
+        # Extract the pattern from numstat
+        if "{" not in numstat_path or "}" not in numstat_path:
+            return False
+        
+        try:
+            # Find the brace section
+            start = numstat_path.index("{")
+            end = numstat_path.index("}")
+            
+            # Extract parts
+            prefix = numstat_path[:start]
+            suffix = numstat_path[end+1:]
+            brace_content = numstat_path[start+1:end]
+            
+            if " => " in brace_content:
+                old_middle, new_middle = brace_content.split(" => ", 1)
+                
+                # Reconstruct expected paths
+                expected_old = prefix + old_middle + suffix
+                expected_new = prefix + new_middle + suffix
+                
+                return expected_old == old_path and expected_new == new_path
+        except (ValueError, IndexError):
+            pass
+        
+        return False
+
+
+
+    ##
     def analyze_repository(self):
         """Analyze the entire repository."""
         click.echo(
