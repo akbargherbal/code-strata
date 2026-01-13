@@ -22,3 +22,4 @@ __pycache__/
 # Streamlit
 .streamlit/
 
+git_analysis_output_*

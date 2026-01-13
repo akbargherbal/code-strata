@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/git-lifecycle/schema/v1.0.0",
+  "title": "Git File Lifecycle Schema v1.0",
+  "description": "Production schema contract for file_lifecycle.json output",
+  "type": "object",
+  "required": ["files", "total_commits", "total_changes", "generated_at", "repository_path", "skipped_unmerged"],
+  "properties": {
+    "files": {
+      "type": "object",
+      "description": "Map of file paths to their lifecycle events",
+      "patternProperties": {
+        ".*": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/lifecycleEvent"
+          }
+        }
+      }
+    },
+    "total_commits": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total number of commits analyzed"
+    },
+    "total_changes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total number of file changes recorded"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of when analysis was run"
+    },
+    "repository_path": {
+      "type": "string",
+      "description": "Absolute path to the analyzed repository"
+    },
+    "skipped_unmerged": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of unmerged changes skipped during analysis"
+    }
+  },
+  "definitions": {
+    "lifecycleEvent": {
+      "type": "object",
+      "required": ["commit_hash", "timestamp", "datetime", "operation", "author_name", "author_email", "commit_subject"],
+      "properties": {
+        "commit_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "description": "Full 40-character git commit SHA-1 hash"
+        },
+        "timestamp": {
+          "type": "integer",
+          "description": "Unix timestamp (seconds since epoch)"
+        },
+        "datetime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 formatted datetime in UTC"
+        },
+        "operation": {
+          "type": "string",
+          "enum": ["A", "M", "D", "R", "C", "T"],
+          "description": "Git operation: A=Add, M=Modify, D=Delete, R=Rename, C=Copy, T=Type change"
+        },
+        "author_name": {
+          "type": "string",
+          "description": "Commit author's name"
+        },
+        "author_email": {
+          "type": "string",
+          "description": "Commit author's email"
+        },
+        "commit_subject": {
+          "type": "string",
+          "description": "First line of commit message"
+        },
+        "old_path": {
+          "type": "string",
+          "description": "Original path for rename/copy operations (optional)"
+        },
+        "similarity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Similarity percentage for rename/copy (optional)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
