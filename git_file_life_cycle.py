@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
 """
-Git File Lifecycle Analyzer - Using Git's Native Structured Output
+Git File Lifecycle Analyzer - JSON-Only Version
+REFACTORING NOTES - This script took 5 days to stabilize.
 
-This version uses --raw format which provides structured, unambiguous output
-instead of parsing text-based --name-status.
+Critical areas that cause silent data corruption if modified incorrectly:
+1. Combined diff parsing (merge commits) - the formula `n_parents = (num_tokens - 3) // 2` is derived from git's internal format
+2. Null-terminated stream parsing - field count (5) must match format string exactly
+3. Path consumption counter - `i += parsed["consumed"]` must match actual paths consumed (renames=2, others=1)
+4. All `-z` flags and `\x00` splitting - architectural decision for handling special chars in filenames
+
+If something looks counterintuitive, there's a reason. Test on repos with merge commits, renames, and unusual filenames before committing changes.
 """
 
 import subprocess
 import json
-import csv
 import click
-import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 from pathlib import Path
+from typing import Optional, Dict, List, Generator, Set, Any, Tuple
 
 
 class GitFileLifecycle:
@@ -21,732 +26,715 @@ class GitFileLifecycle:
         self.repo_path = Path(repo_path).resolve()
         self.file_lifecycle = defaultdict(list)
         self.errors = []
+        self.skipped_unmerged = 0
+        self.total_commits = 0
+        self.total_changes = 0
 
-    def run_git_command(self, *args):
-        """Execute a git command and return the output."""
+    def run_git_command(self, *args, stream=False):
+        """Execute a git command and return the output or stream."""
         try:
-            result = subprocess.run(
-                ["git", "-C", str(self.repo_path)] + list(args),
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            return result.stdout.strip()
+            if stream:
+                # For streaming large outputs
+                process = subprocess.Popen(
+                    ["git", "-C", str(self.repo_path)] + list(args),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
+                return process
+            else:
+                result = subprocess.run(
+                    ["git", "-C", str(self.repo_path)] + list(args),
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    check=True,
+                )
+                return result.stdout.strip()
         except subprocess.CalledProcessError as e:
             error_msg = f"Error running git command: {e}\nstderr: {e.stderr}"
             self.errors.append(error_msg)
             click.echo(click.style(error_msg, fg="red"), err=True)
             return None
 
-    def get_all_commits(self):
-        """Get all commits in reverse chronological order."""
-        output = self.run_git_command(
-            "log", "--all", "--format=%H|%at|%an|%ae|%s", "--reverse"
+    def validate_repository(self):
+        """Check if the path is a valid git repository."""
+        result = self.run_git_command("rev-parse", "--is-inside-work-tree")
+        if result is None or result.lower() != "true":
+            raise ValueError(f"Not a valid git repository: {self.repo_path}")
+
+    def stream_commits(self) -> Generator[Dict, None, None]:
+        """
+        Stream commits one at a time using null-terminated output.
+        This avoids loading all commits into memory.
+        """
+        # Use -z for null-terminated records (commit records separated by null bytes)
+        process = self.run_git_command(
+            "log",
+            "--all",
+            "-z",
+            "--format=%H%x00%at%x00%an%x00%ae%x00%s",
+            "--reverse",
+            stream=True,
         )
 
-        if not output:
-            return []
+        if process is None:
+            return
 
-        commits = []
-        for line in output.split("\n"):
-            if line:
-                try:
-                    commit_hash, timestamp, author_name, author_email, subject = (
-                        line.split("|", 4)
-                    )
-                    commits.append(
-                        {
-                            "hash": commit_hash,
-                            "timestamp": int(timestamp),
-                            "datetime": datetime.fromtimestamp(
-                                int(timestamp)
-                            ).isoformat(),
-                            "author_name": author_name,
-                            "author_email": author_email,
-                            "subject": subject,
-                        }
-                    )
-                except ValueError as e:
-                    self.errors.append(
-                        f"Error parsing commit line: {line[:100]}... Error: {e}"
-                    )
-                    continue
-
-        return commits
-
-    def parse_raw_diff_line(self, line, commit_hash):
-        """
-        Parse a single line from git's --raw output.
-
-        Raw format is:
-        :old_mode new_mode old_sha new_sha status[score]<tab>old_path<tab>new_path
-
-        For example:
-        :100644 100644 abc123... def456... M	file.txt
-        :100644 100644 abc123... def456... R100	old.txt	new.txt
-        :000000 100644 000000... abc123... A	new_file.txt
-
-        The status is a single letter (A, M, D, R, C, T, U, X) followed by
-        an optional similarity score for R and C.
-        """
-        if not line.strip() or not line.startswith(":"):
-            return None
-
+        buffer = ""
         try:
-            # Split on colon first to separate the metadata from the paths
-            # Format: :old_mode new_mode old_sha new_sha status\tpaths
-            parts = line[1:].split("\t")  # Remove leading colon and split on tabs
+            for chunk in iter(lambda: process.stdout.read(4096), ""):
+                buffer += chunk
 
-            if len(parts) < 2:
-                return None
+                # With -z, each commit record is terminated by \0
+                # Our format has internal \0 between fields: hash\0timestamp\0name\0email\0subject
+                # Then -z adds another \0, so we get: hash\0timestamp\0name\0email\0subject\0
+                # We need to collect 5 fields per commit
 
-            # First part contains: old_mode new_mode old_sha new_sha status
-            metadata = parts[0].split()
-            if len(metadata) < 5:
-                return None
+                while buffer.count("\x00") >= 5:
+                    # Extract one complete record (5 null-separated fields)
+                    parts = []
+                    remaining = buffer
 
-            old_mode = metadata[0]
-            new_mode = metadata[1]
-            old_sha = metadata[2]
-            new_sha = metadata[3]
-            status_with_score = metadata[4]
+                    for _ in range(5):
+                        if "\x00" in remaining:
+                            field, remaining = remaining.split("\x00", 1)
+                            parts.append(field)
+                        else:
+                            break
 
-            # Extract the status letter and optional score
-            status_letter = status_with_score[0]
-            score = status_with_score[1:] if len(status_with_score) > 1 else None
+                    if len(parts) == 5:
+                        buffer = remaining
+                        commit_hash, timestamp, author_name, author_email, subject = (
+                            parts
+                        )
 
-            # Parse based on status letter
-            if status_letter == "A":  # Added
-                return {
-                    "status": "added",
-                    "path": parts[1],
-                    "old_mode": old_mode,
-                    "new_mode": new_mode,
-                    "old_sha": old_sha,
-                    "new_sha": new_sha,
-                }
+                        if commit_hash:  # Skip empty records
+                            try:
+                                yield {
+                                    "hash": commit_hash,
+                                    "timestamp": int(timestamp),
+                                    "datetime": datetime.fromtimestamp(
+                                        int(timestamp), tz=timezone.utc
+                                    ).isoformat(),
+                                    "author_name": author_name,
+                                    "author_email": author_email,
+                                    "subject": subject,
+                                }
+                            except (ValueError, IndexError) as e:
+                                self.errors.append(
+                                    f"Error parsing commit: {commit_hash[:8] if commit_hash else 'unknown'} - {e}"
+                                )
+                    else:
+                        break
 
-            elif status_letter == "M":  # Modified
-                return {
-                    "status": "modified",
-                    "path": parts[1],
-                    "old_mode": old_mode,
-                    "new_mode": new_mode,
-                    "old_sha": old_sha,
-                    "new_sha": new_sha,
-                }
+        finally:
+            process.stdout.close()
+            process.wait()
 
-            elif status_letter == "D":  # Deleted
-                return {
-                    "status": "deleted",
-                    "path": parts[1],
-                    "old_mode": old_mode,
-                    "new_mode": new_mode,
-                    "old_sha": old_sha,
-                    "new_sha": new_sha,
-                }
-
-            elif status_letter == "R":  # Renamed
-                if len(parts) < 3:
-                    self.errors.append(
-                        f"Invalid rename in commit {commit_hash[:8]}: {line}"
-                    )
-                    return None
-                return {
-                    "status": "renamed",
-                    "old_path": parts[1],
-                    "new_path": parts[2],
-                    "similarity": score or "100",
-                    "old_mode": old_mode,
-                    "new_mode": new_mode,
-                    "old_sha": old_sha,
-                    "new_sha": new_sha,
-                }
-
-            elif status_letter == "C":  # Copied
-                if len(parts) < 3:
-                    self.errors.append(
-                        f"Invalid copy in commit {commit_hash[:8]}: {line}"
-                    )
-                    return None
-                return {
-                    "status": "copied",
-                    "source_path": parts[1],
-                    "path": parts[2],
-                    "similarity": score or "100",
-                    "old_mode": old_mode,
-                    "new_mode": new_mode,
-                    "old_sha": old_sha,
-                    "new_sha": new_sha,
-                }
-
-            elif status_letter == "T":  # Type change
-                return {
-                    "status": "type_changed",
-                    "path": parts[1],
-                    "old_mode": old_mode,
-                    "new_mode": new_mode,
-                    "old_sha": old_sha,
-                    "new_sha": new_sha,
-                }
-
-            elif status_letter == "U":  # Unmerged
-                # Skip unmerged files (merge conflicts)
-                return None
-
-            elif status_letter == "X":  # Unknown
-                self.errors.append(
-                    f"Unknown change type in commit {commit_hash[:8]}: {line}"
-                )
-                return None
-
-            else:
-                self.errors.append(
-                    f"Unexpected status letter '{status_letter}' in commit {commit_hash[:8]}: {line}"
-                )
-                return None
-
-        except (IndexError, ValueError) as e:
-            self.errors.append(
-                f"Error parsing raw diff in commit {commit_hash[:8]}: {line[:100]}... Error: {e}"
-            )
-            return None
-    ##
     def get_commit_changes(self, commit_hash):
         """
-        Get all file changes using --raw format.
-        
-        FIXED: Now properly handles rename detection by matching --numstat's
-        '=>' notation with --raw output's old_path -> new_path mappings.
+        Get all file changes using --raw format with -z for null termination.
         """
+        # Use -z for null-terminated output to handle special characters in filenames
         output = self.run_git_command(
-            "show",
-            "--raw",
-            "--numstat",
-            "--format=",
-            commit_hash,
+            "show", "--raw", "-z", "--no-abbrev", "--format=", commit_hash
         )
 
-        if not output:
+        if output is None:
             return []
 
         changes = []
-        lines = output.split("\n")
 
-        # Build mappings from --raw output first
-        raw_changes = {}
-        old_to_new_path_map = {}  # NEW: Track path renames
-        
-        for line in lines:
-            if line.startswith(":"):
-                parsed = self.parse_raw_diff_line(line, commit_hash)
-                if parsed:
-                    # For renamed files, track both old and new paths
-                    if parsed.get("status") == "renamed":
-                        old_path = parsed.get("old_path")
-                        new_path = parsed.get("new_path")
-                        if old_path and new_path:
-                            # Map both paths to the same change object
-                            raw_changes[old_path] = parsed
-                            raw_changes[new_path] = parsed
-                            old_to_new_path_map[old_path] = new_path
-                    else:
-                        # For other changes, use the path as key
-                        key_path = parsed.get("new_path") or parsed.get("path")
-                        if key_path:
-                            raw_changes[key_path] = parsed
+        # Split on null bytes - with -z, format is:
+        # :mode1 mode2 sha1 sha2 status\0path1\0[path2\0]
+        parts = output.split("\x00")
 
-        # Then process --numstat output
-        for line in lines:
-            if not line.strip() or line.startswith(":"):
+        i = 0
+        while i < len(parts):
+            part = parts[i].strip()
+
+            if not part:
+                i += 1
                 continue
 
-            parts = line.split("\t")
-            if len(parts) >= 3:
-                additions_str = parts[0]
-                deletions_str = parts[1]
-                filepath = parts[2]
-
-                # NEW: Handle --numstat's '=>' notation for renames
-                # Git's --numstat shows: "0  0  old_path => new_path"
-                # We need to match this with the --raw entry
-                raw_change = {}
-                
-                if " => " in filepath or "=> " in filepath or " =>" in filepath:
-                    # This is a renamed file in --numstat format
-                    # Extract old and new paths from the compact notation
-                    
-                    # Handle both formats:
-                    # 1. Simple: "old.txt => new.txt"
-                    # 2. Compact: "{old_dir => new_dir}/file.txt"
-                    
-                    # For now, try to find matching raw entry by checking both
-                    # old and new path possibilities
-                    matched = False
-                    for raw_path, raw_data in raw_changes.items():
-                        if raw_data.get("status") == "renamed":
-                            # Check if this raw rename matches our numstat line
-                            # The filepath in numstat might be in compact form
-                            old_p = raw_data.get("old_path", "")
-                            new_p = raw_data.get("new_path", "")
-                            
-                            # Try to match the numstat notation
-                            if old_p and new_p:
-                                # Simple case: exact match of "old => new"
-                                if filepath == f"{old_p} => {new_p}":
-                                    raw_change = raw_data
-                                    filepath = new_p  # Use new_path as primary filepath
-                                    matched = True
-                                    break
-                                # Git's compact notation case
-                                elif self._matches_compact_notation(filepath, old_p, new_p):
-                                    raw_change = raw_data
-                                    filepath = new_p  # Use new_path as primary filepath
-                                    matched = True
-                                    break
-                    
-                    if not matched:
-                        # If we couldn't match it, keep the original filepath
-                        # but mark it for investigation
-                        raw_change = {"status": "renamed_unmatched"}
+            if part.startswith(":"):
+                # This is a raw diff line
+                # The paths follow in the next parts
+                parsed = self.parse_raw_diff_line_with_paths(
+                    part, parts[i + 1 :], commit_hash
+                )
+                if parsed:
+                    changes.append(parsed["change"])
+                    i += parsed["consumed"]  # Skip the path parts we consumed
                 else:
-                    # Regular file (not renamed), look up normally
-                    raw_change = raw_changes.get(filepath, {})
-
-                # Handle binary files
-                is_binary = additions_str == "-" and deletions_str == "-"
-
-                change = {
-                    "filepath": filepath,
-                    "additions": (
-                        0
-                        if is_binary
-                        else (int(additions_str) if additions_str.isdigit() else 0)
-                    ),
-                    "deletions": (
-                        0
-                        if is_binary
-                        else (int(deletions_str) if deletions_str.isdigit() else 0)
-                    ),
-                    "is_binary": is_binary,
-                }
-
-                # Merge with raw change data
-                change.update(raw_change)
-                changes.append(change)
+                    i += 1
+            else:
+                i += 1
 
         return changes
 
-
-    def _matches_compact_notation(self, numstat_path, old_path, new_path):
+    def parse_raw_diff_line_with_paths(self, metadata_line, path_parts, commit_hash):
         """
-        Helper to check if a numstat compact notation matches old_path -> new_path.
-        
-        Git uses compact notation like:
-        - "{src => packages/excalidraw}/App.tsx" for "src/App.tsx => packages/excalidraw/App.tsx"
-        - "file.{txt => md}" for "file.txt => file.md"
+        Parse a raw diff metadata line along with its associated path parts.
+        Handles both standard diffs (:...) and combined diffs (::...) for merges.
         """
-        # Extract the pattern from numstat
-        if "{" not in numstat_path or "}" not in numstat_path:
-            return False
-        
         try:
-            # Find the brace section
-            start = numstat_path.index("{")
-            end = numstat_path.index("}")
-            
-            # Extract parts
-            prefix = numstat_path[:start]
-            suffix = numstat_path[end+1:]
-            brace_content = numstat_path[start+1:end]
-            
-            if " => " in brace_content:
-                old_middle, new_middle = brace_content.split(" => ", 1)
-                
-                # Reconstruct expected paths
-                expected_old = prefix + old_middle + suffix
-                expected_new = prefix + new_middle + suffix
-                
-                return expected_old == old_path and expected_new == new_path
-        except (ValueError, IndexError):
-            pass
-        
-        return False
+            # Check for combined diff (merge commit) which starts with multiple colons
+            is_combined = metadata_line.startswith("::")
 
+            if is_combined:
+                # --- COMBINED DIFF PARSING (MERGE COMMITS) ---
+                # Format: ::mode1 mode2 mode3 sha1 sha2 sha3 status
+                # Remove all leading colons
+                clean_line = metadata_line.lstrip(":")
+                metadata = clean_line.split()
 
+                # Combined diffs don't usually show renames, so we consume 1 path
+                if len(path_parts) < 1:
+                    return None
 
-    ##
-    def analyze_repository(self):
-        """Analyze the entire repository."""
-        click.echo(
-            f"Analyzing repository: {click.style(str(self.repo_path), fg='cyan')}"
-        )
+                # The last item is the status (e.g., "MM", "AM")
+                status_with_score = metadata[-1]
 
-        commits = self.get_all_commits()
-        if not commits:
-            click.echo(click.style("No commits found in repository", fg="yellow"))
-            return
+                # Check for unmerged status
+                if "U" in status_with_score:
+                    self.skipped_unmerged += 1
+                    return None
 
-        click.echo(f"Found {len(commits)} commits to analyze...")
+                # Calculate indices based on number of parents
+                # Structure: N parents -> N+1 modes, N+1 shas, 1 status
+                # Total tokens = 2(N+1) + 1 = 2N + 3
+                num_tokens = len(metadata)
+                n_parents = (num_tokens - 3) // 2
 
-        with click.progressbar(commits, label="Processing commits") as bar:
-            for commit in bar:
-                changes = self.get_commit_changes(commit["hash"])
+                # Extract result state (last mode and last sha)
+                result_mode_idx = n_parents
+                result_sha_idx = 2 * n_parents + 1
 
-                for change in changes:
-                    status = change.get("status", "modified")
-                    filepath = (
-                        change.get("filepath")
-                        or change.get("new_path")
-                        or change.get("path")
-                    )
+                mode = (
+                    metadata[result_mode_idx]
+                    if result_mode_idx < len(metadata)
+                    else "000000"
+                )
+                sha = (
+                    metadata[result_sha_idx]
+                    if result_sha_idx < len(metadata)
+                    else "0" * 40
+                )
 
-                    if not filepath:
-                        continue
+                # Use first character of status for operation type (A, M, D, etc.)
+                status = status_with_score[0] if status_with_score else "M"
 
-                    event = {
-                        "event_type": status,
-                        "datetime": commit["datetime"],
-                        "timestamp": commit["timestamp"],
-                        "commit_hash": commit["hash"],
-                        "author_name": commit["author_name"],
-                        "author_email": commit["author_email"],
-                        "commit_subject": commit["subject"],
-                        "additions": change.get("additions", 0),
-                        "deletions": change.get("deletions", 0),
-                        "is_binary": change.get("is_binary", False),
-                    }
+                file_path = path_parts[0]
 
-                    # Add status-specific fields
-                    if status == "renamed":
-                        event["old_path"] = change.get("old_path")
-                        event["new_path"] = change.get("new_path")
-                    elif status == "copied":
-                        event["source_path"] = change.get("source_path")
+                return {
+                    "change": {
+                        "operation": status,
+                        "path": file_path,
+                        "mode": mode,
+                        "sha": sha,
+                    },
+                    "consumed": 2,  # metadata line + 1 path
+                }
 
-                    self.file_lifecycle[filepath].append(event)
+            else:
+                # --- STANDARD DIFF PARSING (NORMAL COMMITS) ---
+                # Format: :mode1 mode2 sha1 sha2 status
+                clean_line = metadata_line.lstrip(":")
+                tokens = clean_line.split()
 
-        click.echo(
-            f"\n✓ Analyzed {len(self.file_lifecycle)} unique files across {len(commits)} commits"
-        )
+                if len(tokens) < 5:
+                    return None
 
-    def get_file_summary(self, filepath, events):
-        """Generate a summary for a file's lifecycle."""
-        if not events:
+                # Extract components
+                mode1, mode2, sha1, sha2, status_with_score = tokens[:5]
+
+                # Extract operation and score
+                status = status_with_score[0]
+                score = None
+                if len(status_with_score) > 1:
+                    try:
+                        score = int(status_with_score[1:])
+                    except ValueError:
+                        score = None
+
+                # Determine paths consumed
+                if status in ["R", "C"]:
+                    # Rename/Copy: consume 2 paths (old and new)
+                    if len(path_parts) < 2:
+                        return None
+                    old_path = path_parts[0]
+                    new_path = path_parts[1]
+                    paths_consumed = 3  # metadata + 2 paths
+                    file_path = new_path
+                else:
+                    # Add/Modify/Delete: consume 1 path
+                    if len(path_parts) < 1:
+                        return None
+                    file_path = path_parts[0]
+                    paths_consumed = 2  # metadata + 1 path
+                    old_path = None
+
+                # Check for unmerged status
+                if status == "U":
+                    self.skipped_unmerged += 1
+                    return None
+
+                change = {
+                    "operation": status,
+                    "path": file_path,
+                    "mode": mode2,
+                    "sha": sha2,
+                }
+
+                if old_path:
+                    change["old_path"] = old_path
+                if score is not None:
+                    change["score"] = score
+
+                return {"change": change, "consumed": paths_consumed}
+
+        except (ValueError, IndexError) as e:
+            self.errors.append(
+                f"Error parsing raw diff line in commit {commit_hash[:8]}: {metadata_line} - {e}"
+            )
             return None
 
-        first_event = events[0]
-        last_event = events[-1]
+    def analyze_repository(self):
+        """Main analysis loop - stream commits and build lifecycle data."""
+        click.echo("Analyzing repository...")
 
-        total_additions = sum(e.get("additions", 0) for e in events)
-        total_deletions = sum(e.get("deletions", 0) for e in events)
+        with click.progressbar(
+            self.stream_commits(), label="Processing commits", show_pos=True
+        ) as commits:
+            for commit in commits:
+                self.total_commits += 1
 
-        # Count different event types
-        modifications = sum(1 for e in events if e["event_type"] == "modified")
-        renames = sum(1 for e in events if e["event_type"] == "renamed")
+                # Get changes for this commit
+                changes = self.get_commit_changes(commit["hash"])
 
-        # Check if file is deleted
-        is_deleted = last_event["event_type"] == "deleted"
+                # Process each change
+                for change in changes:
+                    file_path = change["path"]
 
-        # Check if any event involved binary data
-        has_binary = any(e.get("is_binary", False) for e in events)
-
-        # Get unique authors
-        authors = set(e["author_name"] for e in events)
-
-        return {
-            "filepath": filepath,
-            "created_at": first_event["datetime"],
-            "created_by": first_event["author_name"],
-            "first_commit": first_event["commit_hash"],
-            "last_modified_at": last_event["datetime"],
-            "last_modified_by": last_event["author_name"],
-            "last_commit": last_event["commit_hash"],
-            "is_deleted": is_deleted,
-            "has_binary": has_binary,
-            "total_commits": len(events),
-            "total_modifications": modifications,
-            "total_renames": renames,
-            "total_additions": total_additions,
-            "total_deletions": total_deletions,
-            "net_lines": total_additions - total_deletions,
-            "unique_authors": len(authors),
-            "authors": sorted(authors),
-        }
-
-    def export_to_json(self, output_file):
-        """Export complete lifecycle data to JSON."""
-        data = {
-            "repository": str(self.repo_path),
-            "analyzed_at": datetime.now().isoformat(),
-            "total_files": len(self.file_lifecycle),
-            "total_errors": len(self.errors),
-            "files": {},
-        }
-
-        for filepath, events in self.file_lifecycle.items():
-            data["files"][filepath] = {
-                "summary": self.get_file_summary(filepath, events),
-                "events": events,
-            }
-
-        with open(output_file, "w") as f:
-            json.dump(data, f, indent=2)
-
-        click.echo(
-            f"✓ Exported lifecycle data to {click.style(output_file, fg='green')}"
-        )
-
-    def export_to_csv(self, output_file):
-        """Export summary data to CSV."""
-        with open(output_file, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-
-            writer.writerow(
-                [
-                    "filepath",
-                    "created_at",
-                    "created_by",
-                    "first_commit",
-                    "datetime_last_modified",
-                    "last_modified_by",
-                    "last_commit",
-                    "is_deleted",
-                    "has_binary",
-                    "total_commits",
-                    "total_modifications",
-                    "total_renames",
-                    "total_additions",
-                    "total_deletions",
-                    "net_lines",
-                    "unique_authors",
-                    "authors",
-                ]
-            )
-
-            for filepath, events in sorted(self.file_lifecycle.items()):
-                summary = self.get_file_summary(filepath, events)
-                if summary:
-                    writer.writerow(
-                        [
-                            summary["filepath"],
-                            summary["created_at"],
-                            summary["created_by"],
-                            summary["first_commit"],
-                            summary["last_modified_at"],
-                            summary["last_modified_by"],
-                            summary["last_commit"],
-                            summary["is_deleted"],
-                            summary["has_binary"],
-                            summary["total_commits"],
-                            summary["total_modifications"],
-                            summary["total_renames"],
-                            summary["total_additions"],
-                            summary["total_deletions"],
-                            summary["net_lines"],
-                            summary["unique_authors"],
-                            "; ".join(summary["authors"]),
-                        ]
+                    # Add lifecycle event
+                    self.file_lifecycle[file_path].append(
+                        {
+                            "commit": commit["hash"],
+                            "timestamp": commit["timestamp"],
+                            "datetime": commit["datetime"],
+                            "operation": change["operation"],
+                            "author": commit["author_name"],
+                            "author_email": commit["author_email"],
+                            "subject": commit["subject"],
+                        }
                     )
 
-        click.echo(f"✓ Exported summary data to {click.style(output_file, fg='green')}")
-
-    def export_events_to_csv(self, output_file):
-        """Export all events to a detailed CSV."""
-        with open(output_file, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-
-            writer.writerow(
-                [
-                    "filepath",
-                    "event_type",
-                    "event_datetime",
-                    "datetime_last_modified",
-                    "commit_hash",
-                    "author_name",
-                    "author_email",
-                    "commit_subject",
-                    "additions",
-                    "deletions",
-                    "is_binary",
-                    "old_path",
-                    "new_path",
-                    "source_path",
-                ]
-            )
-
-            for filepath, events in sorted(self.file_lifecycle.items()):
-                last_modified = events[-1]["datetime"] if events else ""
-
-                for event in events:
-                    writer.writerow(
-                        [
-                            filepath,
-                            event["event_type"],
-                            event["datetime"],
-                            last_modified,
-                            event["commit_hash"],
-                            event["author_name"],
-                            event["author_email"],
-                            event["commit_subject"],
-                            event.get("additions", ""),
-                            event.get("deletions", ""),
-                            event.get("is_binary", ""),
-                            event.get("old_path", ""),
-                            event.get("new_path", ""),
-                            event.get("source_path", ""),
-                        ]
-                    )
+                    self.total_changes += 1
 
         click.echo(
-            f"✓ Exported detailed events to {click.style(output_file, fg='green')}"
+            f"✓ Analyzed {click.style(str(self.total_commits), fg='green', bold=True)} commits"
+        )
+        click.echo(
+            f"✓ Tracked {click.style(str(len(self.file_lifecycle)), fg='green', bold=True)} unique files"
+        )
+        click.echo(
+            f"✓ Recorded {click.style(str(self.total_changes), fg='green', bold=True)} changes"
         )
 
-    def export_errors(self, output_file):
-        """Export errors to a text file."""
-        if not self.errors:
-            return
-
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(f"Git File Lifecycle Analyzer - Error Log\n")
-            f.write(f"Generated: {datetime.now().isoformat()}\n")
-            f.write(f"Repository: {self.repo_path}\n")
-            f.write(f"Total Errors: {len(self.errors)}\n")
-            f.write("=" * 80 + "\n\n")
-
-            for i, error in enumerate(self.errors, 1):
-                f.write(f"{i}. {error}\n\n")
-
-        click.echo(f"✓ Exported errors to {click.style(output_file, fg='yellow')}")
+        if self.skipped_unmerged > 0:
+            click.echo(
+                f"⚠ Skipped {click.style(str(self.skipped_unmerged), fg='yellow')} unmerged entries"
+            )
 
     def create_output_directory(self):
         """Create output directory named DATASETS_<repo_name>."""
         repo_name = self.repo_path.name
         output_dir = Path(f"DATASETS_{repo_name}")
         output_dir.mkdir(exist_ok=True)
-
-        click.echo(
-            f"✓ Created output directory: {click.style(str(output_dir), fg='cyan')}"
-        )
         return output_dir
 
-    def generate_metadata_report(self, output_files, output_path):
-        """Generate a metadata report for all exported datasets."""
+    def export_to_json(self, output_path):
+        """Export the file lifecycle data to JSON format."""
+        click.echo(f"Exporting to JSON: {output_path}")
+
+        output_data = {
+            "analyzed_at": datetime.now(timezone.utc).isoformat(),
+            "repository": str(self.repo_path),
+            "total_files": len(self.file_lifecycle),
+            "total_commits": self.total_commits,
+            "total_changes": self.total_changes,
+            "total_errors": len(self.errors),
+            "skipped_unmerged": self.skipped_unmerged,
+            "files": dict(self.file_lifecycle),
+        }
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(output_data, f, indent=2, ensure_ascii=False)
+
+        click.echo(
+            f"✓ Exported {len(self.file_lifecycle):,} files to {click.style(str(output_path), fg='green')}"
+        )
+
+    def export_errors(self, output_path):
+        """Export errors to a text file."""
+        click.echo(f"Exporting errors: {output_path}")
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(f"Git File Lifecycle Analyzer - Error Log\n")
+            f.write(f"Generated: {datetime.now(timezone.utc).isoformat()}\n")
+            f.write(f"Repository: {self.repo_path}\n")
+            f.write(f"\n{'=' * 80}\n\n")
+
+            if self.skipped_unmerged > 0:
+                f.write(f"Unmerged Entries Skipped: {self.skipped_unmerged}\n")
+                f.write(
+                    "Note: Unmerged entries (conflict markers) are skipped automatically.\n\n"
+                )
+
+            if self.errors:
+                f.write(f"Total Errors: {len(self.errors)}\n\n")
+                for i, error in enumerate(self.errors, 1):
+                    f.write(f"Error {i}:\n{error}\n\n")
+            else:
+                f.write("No errors encountered.\n")
+
+        click.echo(
+            f"✓ Exported {len(self.errors)} errors to {click.style(str(output_path), fg='yellow')}"
+        )
+
+    def generate_frontend_assets(self, output_dir):
+        """Generate pre-aggregated JSON files for frontend visualization."""
+        click.echo("Generating frontend-optimized datasets...")
+
+        generated_files = []
+
+        # 1. File Activity Timeline (aggregated by month)
+        timeline_file = output_dir / "timeline_monthly.json"
+        timeline_data = self._aggregate_timeline_monthly()
+        with open(timeline_file, "w", encoding="utf-8") as f:
+            json.dump(timeline_data, f, indent=2)
+        generated_files.append(str(timeline_file))
+        click.echo(f"  ✓ Generated: {timeline_file.name}")
+
+        # 2. Top Active Files
+        top_files_file = output_dir / "top_active_files.json"
+        top_files_data = self._get_top_active_files(limit=100)
+        with open(top_files_file, "w", encoding="utf-8") as f:
+            json.dump(top_files_data, f, indent=2)
+        generated_files.append(str(top_files_file))
+        click.echo(f"  ✓ Generated: {top_files_file.name}")
+
+        # 3. File Type Statistics
+        file_types_file = output_dir / "file_type_stats.json"
+        file_types_data = self._get_file_type_stats()
+        with open(file_types_file, "w", encoding="utf-8") as f:
+            json.dump(file_types_data, f, indent=2)
+        generated_files.append(str(file_types_file))
+        click.echo(f"  ✓ Generated: {file_types_file.name}")
+
+        # 4. Author Activity
+        author_stats_file = output_dir / "author_activity.json"
+        author_data = self._get_author_activity()
+        with open(author_stats_file, "w", encoding="utf-8") as f:
+            json.dump(author_data, f, indent=2)
+        generated_files.append(str(author_stats_file))
+        click.echo(f"  ✓ Generated: {author_stats_file.name}")
+
+        return generated_files
+
+    def _aggregate_timeline_monthly(self):
+        """Aggregate file changes by month."""
+        monthly_activity = defaultdict(lambda: {"adds": 0, "modifies": 0, "deletes": 0})
+
+        for file_path, events in self.file_lifecycle.items():
+            for event in events:
+                # Parse datetime and extract year-month
+                dt = datetime.fromisoformat(event["datetime"])
+                month_key = dt.strftime("%Y-%m")
+
+                op = event["operation"]
+                if op == "A":
+                    monthly_activity[month_key]["adds"] += 1
+                elif op == "M":
+                    monthly_activity[month_key]["modifies"] += 1
+                elif op == "D":
+                    monthly_activity[month_key]["deletes"] += 1
+
+        # Convert to sorted list
+        timeline = [
+            {"month": month, **stats}
+            for month, stats in sorted(monthly_activity.items())
+        ]
+
+        return {
+            "timeline": timeline,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def _get_top_active_files(self, limit=100):
+        """Get files with the most changes."""
+        file_activity = [
+            {
+                "path": file_path,
+                "change_count": len(events),
+                "first_seen": min(e["datetime"] for e in events),
+                "last_seen": max(e["datetime"] for e in events),
+                "operations": {
+                    "adds": sum(1 for e in events if e["operation"] == "A"),
+                    "modifies": sum(1 for e in events if e["operation"] == "M"),
+                    "deletes": sum(1 for e in events if e["operation"] == "D"),
+                },
+            }
+            for file_path, events in self.file_lifecycle.items()
+        ]
+
+        # Sort by change count
+        file_activity.sort(key=lambda x: x["change_count"], reverse=True)
+
+        return {
+            "top_files": file_activity[:limit],
+            "total_files_analyzed": len(self.file_lifecycle),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def _get_file_type_stats(self):
+        """Aggregate statistics by file extension."""
+        extension_stats = defaultdict(lambda: {"count": 0, "total_changes": 0})
+
+        for file_path, events in self.file_lifecycle.items():
+            # Extract extension
+            ext = (
+                Path(file_path).suffix.lower()
+                if Path(file_path).suffix
+                else "(no extension)"
+            )
+
+            extension_stats[ext]["count"] += 1
+            extension_stats[ext]["total_changes"] += len(events)
+
+        # Convert to sorted list
+        stats_list = [
+            {"extension": ext, **stats}
+            for ext, stats in sorted(
+                extension_stats.items(),
+                key=lambda x: x[1]["total_changes"],
+                reverse=True,
+            )
+        ]
+
+        return {
+            "file_types": stats_list,
+            "total_extensions": len(extension_stats),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def _get_author_activity(self):
+        """Aggregate activity by author."""
+        author_stats = defaultdict(
+            lambda: {"commits": set(), "files_touched": set(), "total_changes": 0}
+        )
+
+        for file_path, events in self.file_lifecycle.items():
+            for event in events:
+                author = event["author_email"]
+                author_stats[author]["commits"].add(event["commit"])
+                author_stats[author]["files_touched"].add(file_path)
+                author_stats[author]["total_changes"] += 1
+
+        # Convert sets to counts and create list
+        authors_list = [
+            {
+                "author": author,
+                "email": author,
+                "unique_commits": len(stats["commits"]),
+                "files_touched": len(stats["files_touched"]),
+                "total_changes": stats["total_changes"],
+            }
+            for author, stats in author_stats.items()
+        ]
+
+        # Sort by total changes
+        authors_list.sort(key=lambda x: x["total_changes"], reverse=True)
+
+        return {
+            "authors": authors_list,
+            "total_authors": len(authors_list),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def generate_metadata_report(self, generated_files: List[str], output_path: str):
+        """Generate a metadata report with Pandas-powered insights for JSON files."""
+        click.echo(f"Generating metadata report: {output_path}")
+
+        # Import pandas here (only when needed)
+        try:
+            import pandas as pd
+
+            pandas_available = True
+        except ImportError:
+            pandas_available = False
+            click.echo(
+                click.style("⚠ Pandas not available - basic analysis only", fg="yellow")
+            )
+
         report_lines = [
-            "# Dataset Metadata Report",
+            "# Git File Lifecycle Analysis - Dataset Metadata",
             "",
-            f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            f"**Repository:** {self.repo_path.name}",
-            f"**Repository Path:** {self.repo_path}",
+            f"**Generated:** {datetime.now(timezone.utc).isoformat()}",
+            f"**Repository:** `{self.repo_path}`",
             "",
             "---",
             "",
+            "## Overview",
+            "",
+            f"This dataset contains Git file lifecycle analysis data exported in JSON format.",
+            f"The analysis tracked **{len(self.file_lifecycle):,} unique files** across **{self.total_commits:,} commits**.",
+            "",
+            "---",
+            "",
+            "## Dataset Files",
+            "",
         ]
 
-        for file_path in output_files:
-            if not Path(file_path).exists():
-                continue
-
+        for file_path in sorted(generated_files):
             file_name = Path(file_path).name
             file_size = Path(file_path).stat().st_size
-            file_size_mb = file_size / (1024 * 1024)
+            size_mb = file_size / (1024 * 1024)
 
-            report_lines.append(f"## {file_name}")
+            report_lines.append(f"### 📄 {file_name}")
             report_lines.append("")
             report_lines.append(
-                f"**File Size:** {file_size:,} bytes ({file_size_mb:.2f} MB)"
+                f"**File Size:** {size_mb:.2f} MB ({file_size:,} bytes)"
             )
             report_lines.append("")
 
-            # Analyze CSV files
-            if file_path.endswith(".csv"):
+            # Analyze JSON files with Pandas
+            if file_path.endswith(".json") and pandas_available:
                 try:
-                    df = pd.read_csv(file_path)
-
-                    report_lines.append(f"**Format:** CSV (Comma-Separated Values)")
-                    report_lines.append(
-                        f"**Shape:** {df.shape[0]:,} rows × {df.shape[1]} columns"
-                    )
-                    report_lines.append("")
-
-                    report_lines.append("**Columns:**")
-                    for col in df.columns:
-                        report_lines.append(f"- `{col}`")
-                    report_lines.append("")
-
-                    # Check for null values
-                    null_counts = df.isnull().sum()
-                    total_nulls = null_counts.sum()
-
-                    if total_nulls > 0:
-                        report_lines.append(
-                            f"**Missing Data:** {total_nulls:,} null values found"
-                        )
-                        cols_with_nulls = null_counts[null_counts > 0]
-                        for col, count in cols_with_nulls.items():
-                            pct = (count / len(df)) * 100
-                            report_lines.append(
-                                f"  - `{col}`: {count:,} nulls ({pct:.1f}%)"
-                            )
-                    else:
-                        report_lines.append("**Missing Data:** No null values")
-                    report_lines.append("")
-
-                    # Show value ranges for numeric columns
-                    numeric_cols = df.select_dtypes(
-                        include=["int64", "float64"]
-                    ).columns
-                    if len(numeric_cols) > 0:
-                        report_lines.append("**Numeric Column Ranges:**")
-                        for col in numeric_cols:
-                            min_val = df[col].min()
-                            max_val = df[col].max()
-                            mean_val = df[col].mean()
-                            report_lines.append(
-                                f"- `{col}`: min={min_val:,.2f}, max={max_val:,.2f}, mean={mean_val:,.2f}"
-                            )
-                        report_lines.append("")
-
-                    # Show sample data
-                    report_lines.append("**Sample Data (first 3 rows):**")
-                    report_lines.append("```")
-                    report_lines.append(df.head(3).to_string(index=False))
-                    report_lines.append("```")
-
-                except Exception as e:
-                    report_lines.append(f"**Error analyzing CSV:** {str(e)}")
-
-            # Analyze JSON files
-            elif file_path.endswith(".json"):
-                try:
-                    with open(file_path, "r") as f:
+                    with open(file_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
 
-                    report_lines.append(
-                        f"**Format:** JSON (JavaScript Object Notation)"
-                    )
+                    # Basic structure info
+                    report_lines.append(f"**Format:** JSON")
+                    report_lines.append("")
+
+                    # Handle different JSON structures
+                    if isinstance(data, dict):
+                        # Try to convert to DataFrame for analysis
+                        df = None
+                        nested_analysis = None
+
+                        # Strategy 1: Direct dictionary (e.g., top_active_files, timeline_monthly)
+                        if any(
+                            key in data
+                            for key in [
+                                "top_files",
+                                "timeline",
+                                "file_types",
+                                "authors",
+                            ]
+                        ):
+                            for key in [
+                                "top_files",
+                                "timeline",
+                                "file_types",
+                                "authors",
+                            ]:
+                                if key in data and isinstance(data[key], list):
+                                    try:
+                                        df = pd.DataFrame(data[key])
+                                        break
+                                    except:
+                                        pass
+
+                        # Strategy 2: Main lifecycle file with nested structure
+                        elif "files" in data and isinstance(data["files"], dict):
+                            # This is the main lifecycle file - special handling
+                            nested_analysis = self._analyze_nested_lifecycle(data, pd)
+
+                        # If we have a DataFrame, analyze it
+                        if df is not None and not df.empty:
+                            report_lines.extend(
+                                self._generate_dataframe_analysis(df, file_name)
+                            )
+
+                        # If we have nested analysis, add it
+                        elif nested_analysis:
+                            report_lines.extend(nested_analysis)
+
+                        # Fallback to basic structure
+                        else:
+                            report_lines.append(
+                                f"**Structure:** Dictionary with {len(data)} top-level keys"
+                            )
+                            report_lines.append("")
+                            report_lines.append("**Top-level keys:**")
+                            for key in list(data.keys())[:10]:
+                                value = data[key]
+                                value_type = type(value).__name__
+                                if isinstance(value, (list, dict)):
+                                    size_info = f" ({len(value)} items)"
+                                    report_lines.append(
+                                        f"- `{key}`: {value_type}{size_info}"
+                                    )
+                                else:
+                                    report_lines.append(
+                                        f"- `{key}`: {value_type} = {value}"
+                                    )
+
+                            if len(data) > 10:
+                                report_lines.append(
+                                    f"- *(and {len(data) - 10} more keys)*"
+                                )
+
+                    elif isinstance(data, list):
+                        try:
+                            df = pd.DataFrame(data)
+                            report_lines.extend(
+                                self._generate_dataframe_analysis(df, file_name)
+                            )
+                        except:
+                            report_lines.append(
+                                f"**Structure:** Array with {len(data)} items"
+                            )
+
+                    report_lines.append("")
+
+                except Exception as e:
+                    report_lines.append(f"**Error analyzing JSON:** {str(e)}")
+                    report_lines.append("")
+
+            # Analyze JSON files without Pandas (fallback)
+            elif file_path.endswith(".json") and not pandas_available:
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+
+                    report_lines.append(f"**Format:** JSON")
                     report_lines.append("")
 
                     if isinstance(data, dict):
-                        report_lines.append(f"**Top-level keys:** {len(data)} keys")
-                        report_lines.append("**Structure:**")
-                        for key in list(data.keys())[:10]:  # Show first 10 keys
-                            value = data[key]
-                            value_type = type(value).__name__
-                            if isinstance(value, (list, dict)):
-                                size_info = (
-                                    f" ({len(value)} items)"
-                                    if isinstance(value, (list, dict))
-                                    else ""
-                                )
-                                report_lines.append(
-                                    f"- `{key}`: {value_type}{size_info}"
-                                )
-                            else:
-                                report_lines.append(f"- `{key}`: {value_type}")
-
-                        if len(data) > 10:
-                            report_lines.append(f"- *(and {len(data) - 10} more keys)*")
+                        report_lines.append(
+                            f"**Structure:** Dictionary with {len(data)} keys"
+                        )
+                        if "total_files" in data:
+                            report_lines.append("")
+                            report_lines.append("**Summary Statistics:**")
+                            for key in [
+                                "total_files",
+                                "total_commits",
+                                "total_changes",
+                                "total_errors",
+                            ]:
+                                if key in data:
+                                    report_lines.append(
+                                        f"- {key.replace('_', ' ').title()}: {data[key]:,}"
+                                    )
                     elif isinstance(data, list):
                         report_lines.append(
                             f"**Structure:** Array with {len(data)} items"
@@ -754,22 +742,9 @@ class GitFileLifecycle:
 
                     report_lines.append("")
 
-                    # Special handling for our lifecycle JSON structure
-                    if "total_files" in data:
-                        report_lines.append("**Dataset Statistics:**")
-                        report_lines.append(
-                            f"- Total files analyzed: {data.get('total_files', 0):,}"
-                        )
-                        report_lines.append(
-                            f"- Analysis timestamp: {data.get('analyzed_at', 'N/A')}"
-                        )
-                        if data.get("total_errors", 0) > 0:
-                            report_lines.append(
-                                f"- Errors encountered: {data.get('total_errors', 0)}"
-                            )
-
                 except Exception as e:
                     report_lines.append(f"**Error analyzing JSON:** {str(e)}")
+                    report_lines.append("")
 
             # Analyze text/error files
             elif file_path.endswith(".txt"):
@@ -802,6 +777,204 @@ class GitFileLifecycle:
             f"✓ Generated metadata report: {click.style(str(output_path), fg='green')}"
         )
 
+    def _generate_dataframe_analysis(
+        self, df: "pd.DataFrame", file_name: str
+    ) -> List[str]:
+        """Generate detailed analysis for a pandas DataFrame."""
+        lines = []
+
+        # 1. Shape and Size
+        lines.append("#### 📊 Data Shape & Size")
+        lines.append("")
+        lines.append(f"- **Rows:** {len(df):,}")
+        lines.append(f"- **Columns:** {len(df.columns)}")
+        lines.append(
+            f"- **Memory Usage:** {df.memory_usage(deep=True).sum() / 1024:.2f} KB"
+        )
+        lines.append("")
+
+        # 2. Column Information
+        lines.append("#### 📋 Column Information")
+        lines.append("")
+        lines.append("| Column | Data Type | Non-Null Count | Null % |")
+        lines.append("|--------|-----------|----------------|---------|")
+
+        for col in df.columns:
+            dtype = str(df[col].dtype)
+            non_null = df[col].count()
+            null_pct = ((len(df) - non_null) / len(df) * 100) if len(df) > 0 else 0
+            lines.append(f"| `{col}` | {dtype} | {non_null:,} | {null_pct:.1f}% |")
+
+        lines.append("")
+
+        # 3. Sample Records (first 3 rows)
+        lines.append("#### 🔍 Sample Records")
+        lines.append("")
+        lines.append("First 3 records (showing key fields):")
+        lines.append("")
+        lines.append("```json")
+
+        # Show first 3 records, but limit to key fields if many columns
+        sample_df = df.head(3)
+        if len(df.columns) > 10:
+            # Show only first 6 columns
+            sample_df = sample_df.iloc[:, :6]
+            lines.append(f"// Showing first 6 of {len(df.columns)} columns")
+
+        lines.append(sample_df.to_json(orient="records", indent=2))
+        lines.append("```")
+        lines.append("")
+
+        # 4. Value Distributions for key columns
+        lines.append("#### 📈 Data Distribution")
+        lines.append("")
+
+        # Analyze up to 5 interesting columns
+        analyzed_cols = 0
+        for col in df.columns:
+            if analyzed_cols >= 5:
+                break
+
+            # For numeric columns
+            if df[col].dtype in ["int64", "float64"]:
+                stats = df[col].describe()
+                lines.append(f"**{col}** (numeric):")
+                lines.append(f"- Range: {stats['min']:.2f} to {stats['max']:.2f}")
+                lines.append(f"- Mean: {stats['mean']:.2f}, Median: {stats['50%']:.2f}")
+                lines.append("")
+                analyzed_cols += 1
+
+            # For categorical/object columns
+            elif df[col].dtype == "object" or df[col].nunique() < 50:
+                unique_count = df[col].nunique()
+                lines.append(f"**{col}**:")
+                lines.append(f"- Unique values: {unique_count:,}")
+
+                if unique_count <= 10:
+                    # Show all values with counts
+                    value_counts = df[col].value_counts().head(10)
+                    lines.append("- Distribution:")
+                    for val, count in value_counts.items():
+                        pct = count / len(df) * 100
+                        lines.append(f"  - `{val}`: {count:,} ({pct:.1f}%)")
+                else:
+                    # Show top 5 values
+                    value_counts = df[col].value_counts().head(5)
+                    lines.append("- Top 5 values:")
+                    for val, count in value_counts.items():
+                        pct = count / len(df) * 100
+                        lines.append(f"  - `{val}`: {count:,} ({pct:.1f}%)")
+
+                lines.append("")
+                analyzed_cols += 1
+
+        return lines
+
+    def _analyze_nested_lifecycle(self, data: dict, pd: "module") -> List[str]:
+        """Analyze the nested lifecycle file structure."""
+        lines = []
+
+        lines.append("#### 📊 Lifecycle Data Structure")
+        lines.append("")
+        lines.append(
+            "This file contains the complete lifecycle history for all tracked files."
+        )
+        lines.append("")
+
+        # Extract summary stats
+        files = data.get("files", {})
+        lines.append(f"- **Total Files Tracked:** {len(files):,}")
+        lines.append(f"- **Total Commits Analyzed:** {data.get('total_commits', 0):,}")
+        lines.append(f"- **Total Changes Recorded:** {data.get('total_changes', 0):,}")
+        lines.append("")
+
+        # Analyze event structure
+        if files:
+            lines.append("#### 🔍 Event Structure")
+            lines.append("")
+
+            # Calculate statistics about events per file
+            events_per_file = [len(events) for events in files.values()]
+
+            import statistics
+
+            lines.append(
+                f"- **Average events per file:** {statistics.mean(events_per_file):.1f}"
+            )
+            lines.append(
+                f"- **Median events per file:** {statistics.median(events_per_file):.0f}"
+            )
+            lines.append(f"- **Max events (single file):** {max(events_per_file):,}")
+            lines.append(f"- **Min events (single file):** {min(events_per_file):,}")
+            lines.append("")
+
+            # Sample event structure
+            lines.append("#### 📝 Event Record Example")
+            lines.append("")
+            lines.append("Each file has an array of lifecycle events:")
+            lines.append("")
+            lines.append("```json")
+
+            # Get first file with events
+            for file_path, events in list(files.items())[:1]:
+                if events:
+                    sample_event = {
+                        "file": file_path,
+                        "events": events[:2],  # Show first 2 events
+                    }
+                    lines.append(json.dumps(sample_event, indent=2))
+
+            lines.append("```")
+            lines.append("")
+
+            # Operation distribution
+            lines.append("#### 📈 Operation Distribution")
+            lines.append("")
+
+            operation_counts = {"A": 0, "M": 0, "D": 0, "R": 0, "C": 0}
+            for events in files.values():
+                for event in events:
+                    op = event.get("operation", "M")
+                    if op in operation_counts:
+                        operation_counts[op] += 1
+                    else:
+                        operation_counts["M"] += 1  # Default unknown to modify
+
+            total_ops = sum(operation_counts.values())
+            if total_ops > 0:
+                lines.append("| Operation | Count | Percentage |")
+                lines.append("|-----------|-------|------------|")
+                for op, count in sorted(
+                    operation_counts.items(), key=lambda x: x[1], reverse=True
+                ):
+                    if count > 0:
+                        pct = count / total_ops * 100
+                        op_name = {
+                            "A": "Add",
+                            "M": "Modify",
+                            "D": "Delete",
+                            "R": "Rename",
+                            "C": "Copy",
+                        }.get(op, op)
+                        lines.append(f"| {op_name} ({op}) | {count:,} | {pct:.1f}% |")
+                lines.append("")
+
+        lines.append("#### ⚠️ Data Considerations")
+        lines.append("")
+        lines.append(
+            "- **Nested Structure:** Each file path maps to an array of lifecycle events"
+        )
+        lines.append(
+            "- **Query Complexity:** Deep nesting requires recursive traversal"
+        )
+        lines.append(
+            "- **Memory Requirements:** Large repositories may produce multi-MB files"
+        )
+        lines.append("- **Timestamp Format:** All timestamps in ISO 8601 UTC format")
+        lines.append("")
+
+        return lines
+
 
 @click.command()
 @click.argument(
@@ -814,52 +987,43 @@ class GitFileLifecycle:
     show_default=True,
 )
 @click.option(
-    "--output-summary-csv",
-    default="file_lifecycle_summary.csv",
-    help="Output summary CSV file path",
-    show_default=True,
-)
-@click.option(
-    "--output-events-csv",
-    default="file_lifecycle_events.csv",
-    help="Output detailed events CSV file path",
-    show_default=True,
-)
-@click.option(
     "--output-errors",
     default="file_lifecycle_errors.txt",
     help="Output errors file path",
     show_default=True,
 )
 @click.option("--no-json", is_flag=True, help="Skip JSON export")
-@click.option("--no-csv", is_flag=True, help="Skip CSV exports")
 def main(
     repo_path,
     output_json,
-    output_summary_csv,
-    output_events_csv,
     output_errors,
     no_json,
-    no_csv,
 ):
-    """Analyze git repository using native structured output.
+    """Analyze git repository and export to JSON.
 
     REPO_PATH: Path to the git repository to analyze
     """
-    click.echo(click.style("Git File Lifecycle Analyzer", fg="cyan", bold=True))
-    click.echo(click.style("Using Git's Native Structured Format (--raw)", fg="cyan"))
+    click.echo(
+        click.style("Git File Lifecycle Analyzer - JSON-Only", fg="cyan", bold=True)
+    )
+    click.echo(click.style("Using Null-Terminated Output for Accuracy", fg="cyan"))
     click.echo()
 
     # Initialize analyzer
     analyzer = GitFileLifecycle(repo_path)
+
+    # Validate repository
+    try:
+        analyzer.validate_repository()
+    except ValueError as e:
+        click.echo(click.style(f"✗ {e}", fg="red", bold=True))
+        return
 
     # Create output directory
     output_dir = analyzer.create_output_directory()
 
     # Update output paths to use the new directory
     output_json = str(output_dir / output_json)
-    output_summary_csv = str(output_dir / output_summary_csv)
-    output_events_csv = str(output_dir / output_events_csv)
     output_errors = str(output_dir / output_errors)
     metadata_report = str(output_dir / "dataset_metadata.md")
 
@@ -869,21 +1033,19 @@ def main(
     # Track generated files for metadata report
     generated_files = []
 
-    # Export data
+    # Generate Frontend Assets
+    click.echo()
+    frontend_files = analyzer.generate_frontend_assets(output_dir)
+    generated_files.extend(frontend_files)
+
+    # Export JSON
     if not no_json:
         click.echo()
         analyzer.export_to_json(output_json)
         generated_files.append(output_json)
 
-    if not no_csv:
-        click.echo()
-        analyzer.export_to_csv(output_summary_csv)
-        generated_files.append(output_summary_csv)
-        analyzer.export_events_to_csv(output_events_csv)
-        generated_files.append(output_events_csv)
-
     # Export errors if any
-    if analyzer.errors:
+    if analyzer.errors or analyzer.skipped_unmerged > 0:
         click.echo()
         analyzer.export_errors(output_errors)
         generated_files.append(output_errors)
