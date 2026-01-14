@@ -1,4 +1,4 @@
-# API Reference - Git File Lifecycle Analyzer v2.0.0
+# API Reference - Repository Evolution Analyzer v2.0.0
 
 Complete API documentation for developers extending and integrating the analyzer.
 

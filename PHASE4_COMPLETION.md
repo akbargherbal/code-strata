@@ -269,7 +269,7 @@ usage: strata.py [-h] [-o OUTPUT] [--config CONFIG]
                             [--check-dependencies]
                             repo_path
 
-Git File Lifecycle Analyzer v2.0.0 - Production Release
+Repository Evolution Analyzer v2.0.0 - Production Release
 
 positional arguments:
   repo_path             Path to git repository

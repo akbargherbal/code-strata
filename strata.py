@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Git File Lifecycle Analyzer - Phase 4: Polish & Release (v2.0.0)
+Repository Evolution Analyzer - Phase 4: Polish & Release (v2.0.0)
 
 This is the production-ready v2.0.0 release with:
 - Performance optimizations
@@ -1705,7 +1705,7 @@ class ConfigResolver:
 )
 @click.version_option(version=VERSION)
 def main(repo_path, output, config, preset, **kwargs):
-    """Git File Lifecycle Analyzer v2.0.0 - Production Release"""
+    """Repository Evolution Analyzer v2.0.0 - Production Release"""
 
     # Handle check_dependencies immediately
     if kwargs.get("check_dependencies"):

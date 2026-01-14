@@ -1,6 +1,6 @@
-# Git File Lifecycle Analyzer v2.0.0 - Documentation Index
+# Repository Evolution Analyzer v2.0.0 - Documentation Index
 
-Complete documentation package for the Git File Lifecycle Analyzer.
+Complete documentation package for the Repository Evolution Analyzer.
 
 ---
 
@@ -242,4 +242,4 @@ When extending the analyzer:
 
 ---
 
-*Complete documentation package for Git File Lifecycle Analyzer v2.0.0*
+*Complete documentation package for Repository Evolution Analyzer v2.0.0*

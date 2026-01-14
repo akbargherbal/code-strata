@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test Suite for Phase 4 Features - Git File Lifecycle Analyzer v2.0.0
+Test Suite for Phase 4 Features - Repository Evolution Analyzer v2.0.0
 
 Tests for:
 - Phase 4.1: Performance Optimization (memory monitoring, profiling, caching)

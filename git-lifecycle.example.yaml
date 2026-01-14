@@ -1,4 +1,4 @@
-# Git File Lifecycle Analyzer - Configuration File Example
+# Repository Evolution Analyzer - Configuration File Example
 # Place this file as .git-lifecycle.yaml in your repository or working directory
 # CLI arguments will override these settings
 

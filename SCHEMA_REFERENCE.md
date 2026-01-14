@@ -1,4 +1,4 @@
-# Schema Reference - Git File Lifecycle Analyzer v2.0.0
+# Schema Reference - Repository Evolution Analyzer v2.0.0
 
 Complete schema documentation for all generated datasets.
 
