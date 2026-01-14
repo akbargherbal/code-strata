@@ -1,0 +1,78 @@
+# Git File Lifecycle Analyzer - Configuration File Example
+# Place this file as .git-lifecycle.yaml in your repository or working directory
+# CLI arguments will override these settings
+
+# ============================================================================
+# ANALYSIS PRESETS
+# ============================================================================
+# Use a preset for common configurations
+# Options: standard, quick, essential, network, full
+# preset: standard
+
+# ============================================================================
+# FEATURE FLAGS
+# ============================================================================
+enable-aggregations: true
+phase2: true  # File metadata, temporal, author network
+phase3: false  # Co-change network, hierarchy, milestones
+
+# ============================================================================
+# QUICK MODE (for large repositories)
+# ============================================================================
+quick-mode: false
+sample-rate: 1.0  # 1.0 = 100%, 0.5 = 50%, 0.3 = 30%
+max-cochange-pairs: 10000
+max-author-edges: 5000
+
+# ============================================================================
+# PERFORMANCE OPTIONS
+# ============================================================================
+memory-limit: null  # Set to value in MB to enforce memory limit (e.g., 4096)
+profile: false  # Enable performance profiling
+profile-output: profile_stats.prof
+
+# ============================================================================
+# OUTPUT CONTROL
+# ============================================================================
+output: null  # Output directory (null = auto-generate with timestamp)
+quiet: false
+verbose: false
+no-color: false
+
+# ============================================================================
+# SKIP SPECIFIC AGGREGATORS
+# ============================================================================
+skip-file-metadata: false
+skip-temporal: false
+skip-author-network: false
+skip-cochange: false
+skip-hierarchy: false
+skip-milestones: false
+
+# ============================================================================
+# EXAMPLE CONFIGURATIONS
+# ============================================================================
+
+# Example 1: Standard Analysis (Recommended)
+# preset: standard
+
+# Example 2: Quick Analysis for Large Repos
+# preset: quick
+# sample-rate: 0.3  # Process 30% of commits
+
+# Example 3: Network Analysis Only
+# preset: network
+
+# Example 4: Full Analysis with Memory Limit
+# preset: full
+# memory-limit: 4096  # 4GB limit
+# profile: true
+
+# Example 5: Custom Configuration
+# enable-aggregations: true
+# phase2: true
+# phase3: true
+# skip-milestones: true
+# skip-hierarchy: true
+# memory-limit: 2048
+# verbose: true
