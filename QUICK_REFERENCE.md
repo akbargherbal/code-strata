@@ -4,12 +4,12 @@
 
 ### Basic Usage (Unchanged from v1.0)
 ```bash
-python git_file_lifecycle.py /path/to/repo
+python strata.py /path/to/repo
 ```
 
 ### Recommended (New in v2.0)
 ```bash
-python git_file_lifecycle.py /path/to/repo --preset=standard
+python strata.py /path/to/repo --preset=standard
 ```
 
 ---
@@ -18,19 +18,19 @@ python git_file_lifecycle.py /path/to/repo --preset=standard
 
 ```bash
 # Standard - Recommended for most cases
-python git_file_lifecycle.py /repo --preset=standard
+python strata.py /repo --preset=standard
 
 # Quick - Fast analysis for large repos (30% sampling)
-python git_file_lifecycle.py /repo --preset=quick
+python strata.py /repo --preset=quick
 
 # Full - All features enabled
-python git_file_lifecycle.py /repo --preset=full
+python strata.py /repo --preset=full
 
 # Essential - Core metrics only
-python git_file_lifecycle.py /repo --preset=essential
+python strata.py /repo --preset=essential
 
 # Network - Collaboration analysis
-python git_file_lifecycle.py /repo --preset=network
+python strata.py /repo --preset=network
 ```
 
 ---
@@ -48,10 +48,10 @@ verbose: true
 ### Use Config File
 ```bash
 # Auto-discover (looks for .git-lifecycle.yaml in repo)
-python git_file_lifecycle.py /repo
+python strata.py /repo
 
 # Explicit path
-python git_file_lifecycle.py /repo --config=my-config.yaml
+python strata.py /repo --config=my-config.yaml
 ```
 
 ---
@@ -60,17 +60,17 @@ python git_file_lifecycle.py /repo --config=my-config.yaml
 
 ### Enable Profiling
 ```bash
-python git_file_lifecycle.py /repo --profile --preset=full
+python strata.py /repo --profile --preset=full
 ```
 
 ### With Memory Limit
 ```bash
-python git_file_lifecycle.py /repo --profile --memory-limit=2048
+python strata.py /repo --profile --memory-limit=2048
 ```
 
 ### Verbose + Memory Monitoring
 ```bash
-python git_file_lifecycle.py /repo --preset=standard -v --memory-limit=4096
+python strata.py /repo --preset=standard -v --memory-limit=4096
 ```
 
 ---
@@ -79,22 +79,22 @@ python git_file_lifecycle.py /repo --preset=standard -v --memory-limit=4096
 
 ### Colored Output (Default)
 ```bash
-python git_file_lifecycle.py /repo --preset=standard
+python strata.py /repo --preset=standard
 ```
 
 ### Disable Colors (for CI/CD)
 ```bash
-python git_file_lifecycle.py /repo --preset=standard --no-color
+python strata.py /repo --preset=standard --no-color
 ```
 
 ### Quiet Mode (scripting)
 ```bash
-python git_file_lifecycle.py /repo --preset=standard -q
+python strata.py /repo --preset=standard -q
 ```
 
 ### Verbose Mode (detailed)
 ```bash
-python git_file_lifecycle.py /repo --preset=standard -v
+python strata.py /repo --preset=standard -v
 ```
 
 ---
@@ -117,7 +117,7 @@ Without tqdm:
 
 ### Check Dependencies
 ```bash
-python git_file_lifecycle.py --check-dependencies
+python strata.py --check-dependencies
 ```
 
 Output:
@@ -146,25 +146,25 @@ pip install -r requirements.txt
 
 ### Large Repository (Quick Analysis)
 ```bash
-python git_file_lifecycle.py /huge-repo --preset=quick
+python strata.py /huge-repo --preset=quick
 # Uses 30% sampling, limited features, optimized for speed
 ```
 
 ### Memory-Constrained Environment
 ```bash
-python git_file_lifecycle.py /repo --preset=standard --memory-limit=1024
+python strata.py /repo --preset=standard --memory-limit=1024
 # Aborts if memory usage exceeds 1GB
 ```
 
 ### Performance Debugging
 ```bash
-python git_file_lifecycle.py /repo --preset=full --profile -v
+python strata.py /repo --preset=full --profile -v
 # Full profiling with verbose output and cache statistics
 ```
 
 ### CI/CD Pipeline
 ```bash
-python git_file_lifecycle.py /repo --preset=essential --no-color -q -o output/
+python strata.py /repo --preset=essential --no-color -q -o output/
 # No colors, quiet mode, specified output directory
 ```
 
@@ -180,7 +180,7 @@ verbose: true
 ```
 
 ```bash
-python git_file_lifecycle.py /repo
+python strata.py /repo
 # Automatically uses .git-lifecycle.yaml
 ```
 
@@ -229,10 +229,10 @@ pip install pyyaml
 ### Memory Errors?
 ```bash
 # Use quick mode
-python git_file_lifecycle.py /repo --preset=quick
+python strata.py /repo --preset=quick
 
 # Or set memory limit
-python git_file_lifecycle.py /repo --memory-limit=2048
+python strata.py /repo --memory-limit=2048
 ```
 
 ---
@@ -253,7 +253,7 @@ python git_file_lifecycle.py /repo --memory-limit=2048
 
 ## 🔗 Related Files
 
-- `git_file_lifecycle.py` - Enhanced script
+- `strata.py` - Enhanced script
 - `requirements.txt` - Optional dependencies
 - `.git-lifecycle.example.yaml` - Configuration template
 - `PHASE4_COMPLETION.md` - Detailed documentation

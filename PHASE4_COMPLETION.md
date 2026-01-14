@@ -54,13 +54,13 @@ class PerformanceMetrics:
 
 ```bash
 # Enable profiling with 4GB memory limit
-python git_file_lifecycle.py /repo --profile --memory-limit=4096
+python strata.py /repo --profile --memory-limit=4096
 
 # Verbose mode with memory monitoring
-python git_file_lifecycle.py /repo --preset=full -v --memory-limit=2048
+python strata.py /repo --preset=full -v --memory-limit=2048
 
 # Check cache performance
-python git_file_lifecycle.py /repo --preset=standard -v
+python strata.py /repo --preset=standard -v
 # Output includes: Cache hit rate: 87.3%
 ```
 
@@ -115,13 +115,13 @@ class ProgressReporter:
 
 ```bash
 # Check what's installed
-python git_file_lifecycle.py --check-dependencies
+python strata.py --check-dependencies
 
 # Disable colors for CI/CD
-python git_file_lifecycle.py /repo --preset=standard --no-color
+python strata.py /repo --preset=standard --no-color
 
 # Quiet mode (no progress bars)
-python git_file_lifecycle.py /repo --preset=quick -q
+python strata.py /repo --preset=quick -q
 ```
 
 ---
@@ -166,7 +166,7 @@ Automatically searches for config files in:
 
 ##### Manual Specification
 ```bash
-python git_file_lifecycle.py /repo --config=path/to/config.yaml
+python strata.py /repo --config=path/to/config.yaml
 ```
 
 ##### Configuration Loading
@@ -206,20 +206,20 @@ verbose: true
 
 ```bash
 # Use standard preset
-python git_file_lifecycle.py /repo --preset=standard
+python strata.py /repo --preset=standard
 
 # Quick analysis with custom sampling
-python git_file_lifecycle.py /repo --preset=quick --sample-rate=0.2
+python strata.py /repo --preset=quick --sample-rate=0.2
 
 # Load from config file
-python git_file_lifecycle.py /repo --config=my-config.yaml
+python strata.py /repo --config=my-config.yaml
 
 # Config file with CLI override
-python git_file_lifecycle.py /repo --config=my-config.yaml --quick-mode
+python strata.py /repo --config=my-config.yaml --quick-mode
 
 # Auto-discover config
 # (Just place .git-lifecycle.yaml in repo directory)
-python git_file_lifecycle.py /repo
+python strata.py /repo
 ```
 
 ---
@@ -246,7 +246,7 @@ pip install psutil      # Memory monitoring
 
 ### Check Installation
 ```bash
-python git_file_lifecycle.py --check-dependencies
+python strata.py --check-dependencies
 ```
 
 ---
@@ -254,7 +254,7 @@ python git_file_lifecycle.py --check-dependencies
 ## Updated CLI Help
 
 ```
-usage: git_file_lifecycle.py [-h] [-o OUTPUT] [--config CONFIG]
+usage: strata.py [-h] [-o OUTPUT] [--config CONFIG]
                             [--enable-aggregations] [--phase2] [--phase3]
                             [--quick-mode] [--sample-rate SAMPLE_RATE]
                             [--max-cochange-pairs MAX_COCHANGE_PAIRS]
@@ -324,12 +324,12 @@ Based on testing with various repository sizes:
 
 **Before (v1.0):**
 ```bash
-python git_file_lifecycle.py /repo --enable-aggregations --phase2 --phase3
+python strata.py /repo --enable-aggregations --phase2 --phase3
 ```
 
 **After (v2.0):**
 ```bash
-python git_file_lifecycle.py /repo --preset=full
+python strata.py /repo --preset=full
 ```
 
 Or use a config file:
@@ -341,7 +341,7 @@ verbose: true
 ```
 
 ```bash
-python git_file_lifecycle.py /repo
+python strata.py /repo
 ```
 
 ---
@@ -349,7 +349,7 @@ python git_file_lifecycle.py /repo
 ## Files Included
 
 ### Enhanced Script
-- `git_file_lifecycle.py` (v2.0.0 with Phase 4.1, 4.2, 4.3)
+- `strata.py` (v2.0.0 with Phase 4.1, 4.2, 4.3)
 
 ### Configuration Example
 - `.git-lifecycle.example.yaml` (comprehensive example)

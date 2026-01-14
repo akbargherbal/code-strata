@@ -179,7 +179,7 @@ Complete documentation package for the Git File Lifecycle Analyzer.
 
 ```
 phase4_enhanced/
-├── git_file_lifecycle.py              # Enhanced script (v2.0.0)
+├── strata.py              # Enhanced script (v2.0.0)
 ├── requirements.txt                   # Optional dependencies
 ├── .git-lifecycle.example.yaml        # Configuration template
 │
@@ -196,8 +196,8 @@ phase4_enhanced/
 ## 🚀 Next Steps
 
 1. **Install dependencies**: `pip install -r requirements.txt`
-2. **Check setup**: `python git_file_lifecycle.py --check-dependencies`
-3. **Try it out**: `python git_file_lifecycle.py /path/to/repo --preset=standard`
+2. **Check setup**: `python strata.py --check-dependencies`
+3. **Try it out**: `python strata.py /path/to/repo --preset=standard`
 4. **Read schemas**: Open SCHEMA_REFERENCE.md to understand output
 5. **Customize**: Create `.git-lifecycle.yaml` for your needs
 

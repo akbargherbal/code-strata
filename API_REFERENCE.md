@@ -851,7 +851,7 @@ Step-by-step guide to create your own aggregator.
 #### Step 1: Subclass DatasetAggregator
 
 ```python
-from git_file_lifecycle import DatasetAggregator
+from strata import DatasetAggregator
 
 class MyCustomAggregator(DatasetAggregator):
     """Custom aggregator for specific analysis"""
@@ -974,7 +974,7 @@ class RobustAggregator(DatasetAggregator):
 ### 9.1 Basic Usage
 
 ```python
-from git_file_lifecycle import GitFileLifecycle, ProgressReporter
+from strata import GitFileLifecycle, ProgressReporter
 
 # Create analyzer
 reporter = ProgressReporter(verbose=True)
@@ -993,7 +993,7 @@ print(f"Tracked {len(analyzer.files)} files")
 ### 9.2 Full Analysis with All Aggregators
 
 ```python
-from git_file_lifecycle import (
+from strata import (
     GitFileLifecycle,
     FileMetadataAggregator,
     TemporalAggregator,
@@ -1055,7 +1055,7 @@ analyzer.export_lifecycle('output/file_lifecycle.json')
 ### 9.4 Performance Profiling
 
 ```python
-from git_file_lifecycle import ProfilingContext
+from strata import ProfilingContext
 
 with ProfilingContext(enabled=True, output_path='profile.prof'):
     analyzer = GitFileLifecycle('/path/to/repo')
@@ -1131,7 +1131,7 @@ lang_agg.export('output/language_stats.json')
 ### 9.6 Programmatic Configuration Resolution
 
 ```python
-from git_file_lifecycle import ConfigResolver, GitFileLifecycle
+from strata import ConfigResolver, GitFileLifecycle
 
 # Simulate CLI arguments (e.g., from another script or API call)
 cli_params = {

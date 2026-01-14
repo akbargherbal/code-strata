@@ -25,7 +25,7 @@ from click.testing import CliRunner
 # Add parent directory to path to import the module
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from git_file_lifecycle import (
+from strata import (
     MemoryMonitor,
     ProfilingContext,
     PerformanceMetrics,
@@ -277,7 +277,7 @@ class TestProgressReporter:
         colored = reporter._colorize("Test", "RED")
         assert colored == "Test"  # No color codes added
 
-    @patch("git_file_lifecycle.COLORAMA_AVAILABLE", True)
+    @patch("strata.COLORAMA_AVAILABLE", True)
     def test_colorize_with_colors_enabled(self):
         """Test colorization when colors are enabled"""
         reporter = ProgressReporter(use_colors=True)
@@ -298,8 +298,8 @@ class TestProgressReporter:
         captured = capsys.readouterr()
         assert "complete" in captured.out
 
-    @patch("git_file_lifecycle.TQDM_AVAILABLE", True)
-    @patch("git_file_lifecycle.tqdm")
+    @patch("strata.TQDM_AVAILABLE", True)
+    @patch("strata.tqdm")
     def test_create_progress_bar_available(self, mock_tqdm):
         """Test progress bar creation when tqdm is available"""
         reporter = ProgressReporter(quiet=False)
@@ -310,7 +310,7 @@ class TestProgressReporter:
         call_kwargs = mock_tqdm.call_args[1]
         assert call_kwargs["total"] == 100
 
-    @patch("git_file_lifecycle.TQDM_AVAILABLE", False)
+    @patch("strata.TQDM_AVAILABLE", False)
     def test_create_progress_bar_unavailable(self):
         """Test progress bar creation when tqdm is not available"""
         reporter = ProgressReporter(quiet=False)
@@ -456,7 +456,7 @@ class TestConfigResolver:
 
         # Mock load_config_file to return a different value
         with patch(
-            "git_file_lifecycle.load_config_file", return_value={"memory_limit": 2048}
+            "strata.load_config_file", return_value={"memory_limit": 2048}
         ):
             resolver = ConfigResolver(cli_params, config_path="dummy.yaml")
             assert resolver.get("memory_limit") == 4096
@@ -467,7 +467,7 @@ class TestConfigResolver:
         config_mock = {"sample_rate": 0.5}
 
         # Preset 'quick' usually has sample_rate 0.3
-        with patch("git_file_lifecycle.load_config_file", return_value=config_mock):
+        with patch("strata.load_config_file", return_value=config_mock):
             resolver = ConfigResolver(
                 cli_params, config_path="dummy.yaml", preset_name="quick"
             )
@@ -483,7 +483,7 @@ class TestConfigResolver:
         """Test that kebab-case keys in config are converted to snake_case"""
         config_mock = {"enable-aggregations": True, "memory-limit": 1024}
 
-        with patch("git_file_lifecycle.load_config_file", return_value=config_mock):
+        with patch("strata.load_config_file", return_value=config_mock):
             resolver = ConfigResolver({}, config_path="dummy.yaml")
             assert resolver.get("enable_aggregations") is True
             assert resolver.get("memory_limit") == 1024
