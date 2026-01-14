@@ -1323,6 +1323,212 @@ def generate_manifest(
     return manifest
 
 
+class MetadataReportGenerator:
+    """
+    Generates a Markdown report summarizing the generated datasets.
+    Restored and enhanced from V1 for V2 architecture.
+    """
+
+    def __init__(self, analyzer, output_dir: str, datasets: Dict[str, str]):
+        self.analyzer = analyzer
+        self.output_dir = Path(output_dir)
+        self.datasets = datasets
+        self.timestamp = datetime.now(timezone.utc).isoformat()
+
+        try:
+            import pandas as pd
+
+            self.pd = pd
+            self.pandas_available = True
+        except ImportError:
+            self.pd = None
+            self.pandas_available = False
+
+    def generate(self, output_filename: str = "dataset_metadata.md"):
+        """Generate the markdown report."""
+        report_path = self.output_dir / output_filename
+
+        lines = [
+            "# Git File Lifecycle Analysis - Dataset Metadata",
+            "",
+            f"**Generated:** {self.timestamp}",
+            f"**Repository:** `{self.analyzer.repo_path}`",
+            f"**Generator Version:** {VERSION}",
+            "",
+            "---",
+            "",
+            "## 📊 Analysis Overview",
+            "",
+            f"- **Total Commits:** {self.analyzer.total_commits:,}",
+            f"- **Total Files Tracked:** {len(self.analyzer.files):,}",
+            f"- **Total Changes Recorded:** {self.analyzer.total_changes:,}",
+            "",
+            "### Performance Metrics",
+            "",
+            f"- **Execution Time:** {self.analyzer.metrics.total_time:.2f}s",
+            f"- **Peak Memory:** {self.analyzer.metrics.memory_peak_mb:.1f} MB",
+            f"- **Cache Hit Rate:** {(self.analyzer.metrics.cache_hits / (self.analyzer.metrics.cache_hits + self.analyzer.metrics.cache_misses) * 100) if (self.analyzer.metrics.cache_hits + self.analyzer.metrics.cache_misses) > 0 else 0:.1f}%",
+            "",
+            "---",
+            "",
+            "## 📂 Dataset Files",
+            "",
+        ]
+
+        # Sort datasets by name for consistent output
+        for name, rel_path in sorted(self.datasets.items()):
+            full_path = self.output_dir / rel_path
+            if not full_path.exists():
+                continue
+
+            lines.extend(self._analyze_file(name, full_path))
+
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+
+        return report_path
+
+    def _analyze_file(self, name: str, file_path: Path) -> List[str]:
+        """Analyze a single file and return markdown lines."""
+        lines = []
+        file_size = file_path.stat().st_size
+        size_str = (
+            f"{file_size / 1024 / 1024:.2f} MB"
+            if file_size > 1024 * 1024
+            else f"{file_size / 1024:.2f} KB"
+        )
+
+        lines.append(f"### 📄 {file_path.name} ({name})")
+        lines.append("")
+        lines.append(f"**File Size:** {size_str} ({file_size:,} bytes)")
+        lines.append(f"**Format:** JSON")
+        lines.append("")
+
+        if not self.pandas_available:
+            lines.append(
+                "> ℹ️ Install `pandas` for detailed data shape and distribution analysis."
+            )
+            lines.append("")
+            return lines
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            # Handle V2 Wrapper Structure (schema_version, etc.)
+            content = data
+            if isinstance(data, dict):
+                # V2 often wraps the actual list in a key like "files", "nodes", "days"
+                # We try to find the main list to analyze
+                keys_to_check = [
+                    "files",
+                    "nodes",
+                    "edges",
+                    "days",
+                    "months",
+                    "snapshots",
+                    "directories",
+                ]
+                for key in keys_to_check:
+                    if key in data and isinstance(data[key], (list, dict)):
+                        content = data[key]
+                        lines.append(f"**Root Keys:** `{', '.join(data.keys())}`")
+                        lines.append(f"**Analyzing Key:** `{key}`")
+                        break
+
+            # Convert to DataFrame
+            df = None
+            if isinstance(content, list):
+                df = self.pd.DataFrame(content)
+            elif isinstance(content, dict):
+                # Handle dictionary of dictionaries (e.g. file_lifecycle.json files map)
+                # Convert {key: {attr1, attr2}} to [{key, attr1, attr2}]
+                try:
+                    df = self.pd.DataFrame.from_dict(content, orient="index")
+                    df.reset_index(inplace=True)
+                    df.rename(columns={"index": "key"}, inplace=True)
+                except:
+                    pass
+
+            if df is not None and not df.empty:
+                lines.extend(self._generate_dataframe_analysis(df))
+            else:
+                lines.append(
+                    "**Structure:** Complex nested JSON (automated tabular analysis skipped)"
+                )
+
+        except Exception as e:
+            lines.append(f"**⚠️ Analysis Error:** {str(e)}")
+
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+        return lines
+
+    def _generate_dataframe_analysis(self, df) -> List[str]:
+        """Generate detailed analysis for a pandas DataFrame."""
+        lines = []
+
+        # 1. Shape
+        lines.append("#### 📊 Data Shape")
+        lines.append(f"- **Rows:** {len(df):,}")
+        lines.append(f"- **Columns:** {len(df.columns)}")
+        lines.append("")
+
+        # 2. Columns
+        lines.append("#### 📋 Column Information")
+        lines.append("| Column | Data Type | Non-Null | Null % |")
+        lines.append("|--------|-----------|----------|--------|")
+
+        for col in df.columns:
+            dtype = str(df[col].dtype)
+            non_null = df[col].count()
+            null_pct = ((len(df) - non_null) / len(df) * 100) if len(df) > 0 else 0
+            lines.append(f"| `{col}` | {dtype} | {non_null:,} | {null_pct:.1f}% |")
+        lines.append("")
+
+        # 3. Sample
+        lines.append("#### 🔍 Sample Records (First 3)")
+        lines.append("```json")
+        # Convert complex types to string for display to avoid JSON serialization errors
+        sample_df = df.head(3).copy()
+        for col in sample_df.columns:
+            if sample_df[col].apply(lambda x: isinstance(x, (dict, list, set))).any():
+                sample_df[col] = sample_df[col].apply(str)
+        lines.append(sample_df.to_json(orient="records", indent=2))
+        lines.append("```")
+        lines.append("")
+
+        # 4. Distribution (Fixed "unhashable type" bug)
+        lines.append("#### 📈 Data Distribution (Top 5)")
+
+        # Limit to first 5 columns to save space, or specific interesting ones
+        for col in df.columns[:8]:
+            lines.append(f"**{col}**:")
+
+            # Check if column contains unhashable types (dicts, lists)
+            if df[col].apply(lambda x: isinstance(x, (dict, list, set))).any():
+                lines.append("- *Contains nested structures (skipped distribution)*")
+                lines.append("")
+                continue
+
+            if df[col].dtype in ["int64", "float64"]:
+                stats = df[col].describe()
+                lines.append(f"- Range: {stats['min']:.2f} to {stats['max']:.2f}")
+                lines.append(f"- Mean: {stats['mean']:.2f}")
+            else:
+                unique_count = df[col].nunique()
+                lines.append(f"- Unique values: {unique_count:,}")
+                if unique_count < 50:
+                    top = df[col].value_counts().head(5)
+                    for val, count in top.items():
+                        pct = (count / len(df)) * 100
+                        lines.append(f"  - `{val}`: {count:,} ({pct:.1f}%)")
+            lines.append("")
+
+        return lines
+
+
 # ============================================================================
 # CLI & MAIN FUNCTION
 # ============================================================================
@@ -1420,9 +1626,9 @@ class ConfigResolver:
 
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))
 @click.argument(
-    "repo_path", 
+    "repo_path",
     type=click.Path(exists=True, file_okay=False, resolve_path=True),
-    required=False  # Changed to False to allow --check-dependencies to run without path
+    required=False,  # Changed to False to allow --check-dependencies to run without path
 )
 @click.option(
     "-o",
@@ -1784,6 +1990,19 @@ def main(repo_path, output, config, preset, **kwargs):
             # Generate Manifest
             generate_manifest(output_dir, analyzer, datasets)
 
+            # --- NEW: Generate Metadata Report ---
+            reporter.stage_start("Reporting", "Generating metadata report...")
+            try:
+                report_gen = MetadataReportGenerator(analyzer, output_dir, datasets)
+                report_path = report_gen.generate()
+                reporter.stage_complete("Reporting", {"Report": str(report_path)})
+
+                if not report_gen.pandas_available:
+                    reporter.info("Tip: Install 'pandas' for richer metadata reports")
+            except Exception as e:
+                reporter.warning(f"Failed to generate metadata report: {e}")
+            # -------------------------------------
+
             # Write Errors
             if analyzer.errors:
                 with open(
@@ -1815,6 +2034,7 @@ def main(repo_path, output, config, preset, **kwargs):
 
             traceback.print_exc()
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
