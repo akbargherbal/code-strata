@@ -1,0 +1,664 @@
+{
+  "schema_version": "1.0.0",
+  "aggregation_level": "monthly",
+  "total_months": 73,
+  "months": {
+    "2020-01": {
+      "month": "2020-01",
+      "commits": 382,
+      "files_changed": 1055,
+      "unique_authors": 50,
+      "operations": {
+        "M": 1055
+      }
+    },
+    "2020-02": {
+      "month": "2020-02",
+      "commits": 119,
+      "files_changed": 460,
+      "unique_authors": 19,
+      "operations": {
+        "M": 460
+      }
+    },
+    "2020-03": {
+      "month": "2020-03",
+      "commits": 160,
+      "files_changed": 719,
+      "unique_authors": 22,
+      "operations": {
+        "M": 719
+      }
+    },
+    "2020-04": {
+      "month": "2020-04",
+      "commits": 198,
+      "files_changed": 866,
+      "unique_authors": 36,
+      "operations": {
+        "M": 866
+      }
+    },
+    "2020-05": {
+      "month": "2020-05",
+      "commits": 77,
+      "files_changed": 432,
+      "unique_authors": 22,
+      "operations": {
+        "M": 432
+      }
+    },
+    "2020-06": {
+      "month": "2020-06",
+      "commits": 67,
+      "files_changed": 342,
+      "unique_authors": 18,
+      "operations": {
+        "M": 342
+      }
+    },
+    "2020-07": {
+      "month": "2020-07",
+      "commits": 83,
+      "files_changed": 299,
+      "unique_authors": 18,
+      "operations": {
+        "M": 299
+      }
+    },
+    "2020-08": {
+      "month": "2020-08",
+      "commits": 75,
+      "files_changed": 360,
+      "unique_authors": 16,
+      "operations": {
+        "M": 360
+      }
+    },
+    "2020-09": {
+      "month": "2020-09",
+      "commits": 39,
+      "files_changed": 153,
+      "unique_authors": 13,
+      "operations": {
+        "M": 153
+      }
+    },
+    "2020-10": {
+      "month": "2020-10",
+      "commits": 77,
+      "files_changed": 477,
+      "unique_authors": 14,
+      "operations": {
+        "M": 477
+      }
+    },
+    "2020-11": {
+      "month": "2020-11",
+      "commits": 61,
+      "files_changed": 334,
+      "unique_authors": 12,
+      "operations": {
+        "M": 334
+      }
+    },
+    "2020-12": {
+      "month": "2020-12",
+      "commits": 152,
+      "files_changed": 684,
+      "unique_authors": 22,
+      "operations": {
+        "M": 684
+      }
+    },
+    "2021-01": {
+      "month": "2021-01",
+      "commits": 112,
+      "files_changed": 460,
+      "unique_authors": 16,
+      "operations": {
+        "M": 460
+      }
+    },
+    "2021-02": {
+      "month": "2021-02",
+      "commits": 225,
+      "files_changed": 802,
+      "unique_authors": 14,
+      "operations": {
+        "M": 802
+      }
+    },
+    "2021-03": {
+      "month": "2021-03",
+      "commits": 148,
+      "files_changed": 685,
+      "unique_authors": 18,
+      "operations": {
+        "M": 685
+      }
+    },
+    "2021-04": {
+      "month": "2021-04",
+      "commits": 98,
+      "files_changed": 385,
+      "unique_authors": 10,
+      "operations": {
+        "M": 385
+      }
+    },
+    "2021-05": {
+      "month": "2021-05",
+      "commits": 86,
+      "files_changed": 452,
+      "unique_authors": 11,
+      "operations": {
+        "M": 452
+      }
+    },
+    "2021-06": {
+      "month": "2021-06",
+      "commits": 39,
+      "files_changed": 164,
+      "unique_authors": 11,
+      "operations": {
+        "M": 164
+      }
+    },
+    "2021-07": {
+      "month": "2021-07",
+      "commits": 25,
+      "files_changed": 137,
+      "unique_authors": 9,
+      "operations": {
+        "M": 137
+      }
+    },
+    "2021-08": {
+      "month": "2021-08",
+      "commits": 22,
+      "files_changed": 41,
+      "unique_authors": 4,
+      "operations": {
+        "M": 41
+      }
+    },
+    "2021-09": {
+      "month": "2021-09",
+      "commits": 5,
+      "files_changed": 48,
+      "unique_authors": 5,
+      "operations": {
+        "M": 48
+      }
+    },
+    "2021-10": {
+      "month": "2021-10",
+      "commits": 71,
+      "files_changed": 444,
+      "unique_authors": 9,
+      "operations": {
+        "M": 444
+      }
+    },
+    "2021-11": {
+      "month": "2021-11",
+      "commits": 103,
+      "files_changed": 483,
+      "unique_authors": 7,
+      "operations": {
+        "M": 483
+      }
+    },
+    "2021-12": {
+      "month": "2021-12",
+      "commits": 76,
+      "files_changed": 237,
+      "unique_authors": 6,
+      "operations": {
+        "M": 237
+      }
+    },
+    "2022-01": {
+      "month": "2022-01",
+      "commits": 52,
+      "files_changed": 183,
+      "unique_authors": 8,
+      "operations": {
+        "M": 183
+      }
+    },
+    "2022-02": {
+      "month": "2022-02",
+      "commits": 68,
+      "files_changed": 239,
+      "unique_authors": 9,
+      "operations": {
+        "M": 239
+      }
+    },
+    "2022-03": {
+      "month": "2022-03",
+      "commits": 105,
+      "files_changed": 427,
+      "unique_authors": 10,
+      "operations": {
+        "M": 427
+      }
+    },
+    "2022-04": {
+      "month": "2022-04",
+      "commits": 62,
+      "files_changed": 264,
+      "unique_authors": 10,
+      "operations": {
+        "M": 264
+      }
+    },
+    "2022-05": {
+      "month": "2022-05",
+      "commits": 52,
+      "files_changed": 212,
+      "unique_authors": 11,
+      "operations": {
+        "M": 212
+      }
+    },
+    "2022-06": {
+      "month": "2022-06",
+      "commits": 24,
+      "files_changed": 97,
+      "unique_authors": 5,
+      "operations": {
+        "M": 97
+      }
+    },
+    "2022-07": {
+      "month": "2022-07",
+      "commits": 91,
+      "files_changed": 406,
+      "unique_authors": 9,
+      "operations": {
+        "M": 406
+      }
+    },
+    "2022-08": {
+      "month": "2022-08",
+      "commits": 67,
+      "files_changed": 171,
+      "unique_authors": 10,
+      "operations": {
+        "M": 171
+      }
+    },
+    "2022-09": {
+      "month": "2022-09",
+      "commits": 30,
+      "files_changed": 97,
+      "unique_authors": 9,
+      "operations": {
+        "M": 97
+      }
+    },
+    "2022-10": {
+      "month": "2022-10",
+      "commits": 18,
+      "files_changed": 145,
+      "unique_authors": 10,
+      "operations": {
+        "M": 145
+      }
+    },
+    "2022-11": {
+      "month": "2022-11",
+      "commits": 61,
+      "files_changed": 285,
+      "unique_authors": 9,
+      "operations": {
+        "M": 285
+      }
+    },
+    "2022-12": {
+      "month": "2022-12",
+      "commits": 42,
+      "files_changed": 275,
+      "unique_authors": 7,
+      "operations": {
+        "M": 275
+      }
+    },
+    "2023-01": {
+      "month": "2023-01",
+      "commits": 68,
+      "files_changed": 503,
+      "unique_authors": 12,
+      "operations": {
+        "M": 503
+      }
+    },
+    "2023-02": {
+      "month": "2023-02",
+      "commits": 57,
+      "files_changed": 617,
+      "unique_authors": 14,
+      "operations": {
+        "M": 617
+      }
+    },
+    "2023-03": {
+      "month": "2023-03",
+      "commits": 76,
+      "files_changed": 220,
+      "unique_authors": 13,
+      "operations": {
+        "M": 220
+      }
+    },
+    "2023-04": {
+      "month": "2023-04",
+      "commits": 122,
+      "files_changed": 394,
+      "unique_authors": 18,
+      "operations": {
+        "M": 394
+      }
+    },
+    "2023-05": {
+      "month": "2023-05",
+      "commits": 34,
+      "files_changed": 464,
+      "unique_authors": 13,
+      "operations": {
+        "M": 464
+      }
+    },
+    "2023-06": {
+      "month": "2023-06",
+      "commits": 41,
+      "files_changed": 359,
+      "unique_authors": 15,
+      "operations": {
+        "M": 359
+      }
+    },
+    "2023-07": {
+      "month": "2023-07",
+      "commits": 95,
+      "files_changed": 596,
+      "unique_authors": 13,
+      "operations": {
+        "M": 596
+      }
+    },
+    "2023-08": {
+      "month": "2023-08",
+      "commits": 118,
+      "files_changed": 415,
+      "unique_authors": 12,
+      "operations": {
+        "M": 415
+      }
+    },
+    "2023-09": {
+      "month": "2023-09",
+      "commits": 114,
+      "files_changed": 490,
+      "unique_authors": 12,
+      "operations": {
+        "M": 490
+      }
+    },
+    "2023-10": {
+      "month": "2023-10",
+      "commits": 90,
+      "files_changed": 402,
+      "unique_authors": 19,
+      "operations": {
+        "M": 402
+      }
+    },
+    "2023-11": {
+      "month": "2023-11",
+      "commits": 92,
+      "files_changed": 417,
+      "unique_authors": 14,
+      "operations": {
+        "M": 417
+      }
+    },
+    "2023-12": {
+      "month": "2023-12",
+      "commits": 51,
+      "files_changed": 942,
+      "unique_authors": 13,
+      "operations": {
+        "M": 942
+      }
+    },
+    "2024-01": {
+      "month": "2024-01",
+      "commits": 50,
+      "files_changed": 338,
+      "unique_authors": 12,
+      "operations": {
+        "M": 338
+      }
+    },
+    "2024-02": {
+      "month": "2024-02",
+      "commits": 54,
+      "files_changed": 271,
+      "unique_authors": 9,
+      "operations": {
+        "M": 271
+      }
+    },
+    "2024-03": {
+      "month": "2024-03",
+      "commits": 20,
+      "files_changed": 147,
+      "unique_authors": 5,
+      "operations": {
+        "M": 147
+      }
+    },
+    "2024-04": {
+      "month": "2024-04",
+      "commits": 43,
+      "files_changed": 272,
+      "unique_authors": 12,
+      "operations": {
+        "M": 272
+      }
+    },
+    "2024-05": {
+      "month": "2024-05",
+      "commits": 65,
+      "files_changed": 460,
+      "unique_authors": 13,
+      "operations": {
+        "M": 460
+      }
+    },
+    "2024-06": {
+      "month": "2024-06",
+      "commits": 18,
+      "files_changed": 108,
+      "unique_authors": 5,
+      "operations": {
+        "M": 108
+      }
+    },
+    "2024-07": {
+      "month": "2024-07",
+      "commits": 33,
+      "files_changed": 234,
+      "unique_authors": 12,
+      "operations": {
+        "M": 234
+      }
+    },
+    "2024-08": {
+      "month": "2024-08",
+      "commits": 59,
+      "files_changed": 421,
+      "unique_authors": 13,
+      "operations": {
+        "M": 421
+      }
+    },
+    "2024-09": {
+      "month": "2024-09",
+      "commits": 57,
+      "files_changed": 311,
+      "unique_authors": 11,
+      "operations": {
+        "M": 311
+      }
+    },
+    "2024-10": {
+      "month": "2024-10",
+      "commits": 48,
+      "files_changed": 794,
+      "unique_authors": 9,
+      "operations": {
+        "M": 794
+      }
+    },
+    "2024-11": {
+      "month": "2024-11",
+      "commits": 31,
+      "files_changed": 168,
+      "unique_authors": 9,
+      "operations": {
+        "M": 168
+      }
+    },
+    "2024-12": {
+      "month": "2024-12",
+      "commits": 23,
+      "files_changed": 89,
+      "unique_authors": 8,
+      "operations": {
+        "M": 89
+      }
+    },
+    "2025-01": {
+      "month": "2025-01",
+      "commits": 73,
+      "files_changed": 483,
+      "unique_authors": 15,
+      "operations": {
+        "M": 483
+      }
+    },
+    "2025-02": {
+      "month": "2025-02",
+      "commits": 33,
+      "files_changed": 472,
+      "unique_authors": 9,
+      "operations": {
+        "M": 472
+      }
+    },
+    "2025-03": {
+      "month": "2025-03",
+      "commits": 29,
+      "files_changed": 927,
+      "unique_authors": 9,
+      "operations": {
+        "M": 927
+      }
+    },
+    "2025-04": {
+      "month": "2025-04",
+      "commits": 50,
+      "files_changed": 264,
+      "unique_authors": 11,
+      "operations": {
+        "M": 264
+      }
+    },
+    "2025-05": {
+      "month": "2025-05",
+      "commits": 68,
+      "files_changed": 413,
+      "unique_authors": 13,
+      "operations": {
+        "M": 413
+      }
+    },
+    "2025-06": {
+      "month": "2025-06",
+      "commits": 70,
+      "files_changed": 364,
+      "unique_authors": 10,
+      "operations": {
+        "M": 364
+      }
+    },
+    "2025-07": {
+      "month": "2025-07",
+      "commits": 29,
+      "files_changed": 96,
+      "unique_authors": 8,
+      "operations": {
+        "M": 96
+      }
+    },
+    "2025-08": {
+      "month": "2025-08",
+      "commits": 39,
+      "files_changed": 156,
+      "unique_authors": 6,
+      "operations": {
+        "M": 156
+      }
+    },
+    "2025-09": {
+      "month": "2025-09",
+      "commits": 30,
+      "files_changed": 171,
+      "unique_authors": 13,
+      "operations": {
+        "M": 171
+      }
+    },
+    "2025-10": {
+      "month": "2025-10",
+      "commits": 15,
+      "files_changed": 111,
+      "unique_authors": 9,
+      "operations": {
+        "M": 111
+      }
+    },
+    "2025-11": {
+      "month": "2025-11",
+      "commits": 21,
+      "files_changed": 280,
+      "unique_authors": 6,
+      "operations": {
+        "M": 280
+      }
+    },
+    "2025-12": {
+      "month": "2025-12",
+      "commits": 19,
+      "files_changed": 143,
+      "unique_authors": 7,
+      "operations": {
+        "M": 143
+      }
+    },
+    "2026-01": {
+      "month": "2026-01",
+      "commits": 30,
+      "files_changed": 190,
+      "unique_authors": 4,
+      "operations": {
+        "M": 190
+      }
+    }
+  }
+}

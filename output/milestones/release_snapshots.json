@@ -1,0 +1,404 @@
+{
+  "schema_version": "1.0.0",
+  "snapshot_type": "release_milestones",
+  "total_snapshots": 14,
+  "snapshots": [
+    {
+      "tag": "v0.9.0",
+      "timestamp": 1625923339,
+      "datetime": "2021-07-10T13:22:19+00:00",
+      "files_affected": 4,
+      "files": [
+        {
+          "path": "src/packages/excalidraw/CHANGELOG.md",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/package.json",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/README.md",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/README_NEXT.md",
+          "event_type": "release",
+          "operation": "M"
+        }
+      ]
+    },
+    {
+      "tag": "v0.10.0",
+      "timestamp": 1634124830,
+      "datetime": "2021-10-13T11:33:50+00:00",
+      "files_affected": 5,
+      "files": [
+        {
+          "path": "src/packages/excalidraw/CHANGELOG.md",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/package.json",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/README.md",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "scripts/release.js",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/webpack.prod.config.js",
+          "event_type": "release",
+          "operation": "M"
+        }
+      ]
+    },
+    {
+      "tag": "v0.11.0",
+      "timestamp": 1645104164,
+      "datetime": "2022-02-17T13:22:44+00:00",
+      "files_affected": 3,
+      "files": [
+        {
+          "path": "src/packages/excalidraw/CHANGELOG.md",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/package.json",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/README.md",
+          "event_type": "release",
+          "operation": "M"
+        }
+      ]
+    },
+    {
+      "tag": "v0.12.0",
+      "timestamp": 1657198579,
+      "datetime": "2022-07-07T12:56:19+00:00",
+      "files_affected": 2,
+      "files": [
+        {
+          "path": "src/packages/excalidraw/CHANGELOG.md",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/package.json",
+          "event_type": "release",
+          "operation": "M"
+        }
+      ]
+    },
+    {
+      "tag": "v0.13.0",
+      "timestamp": 1666875524,
+      "datetime": "2022-10-27T12:58:44+00:00",
+      "files_affected": 2,
+      "files": [
+        {
+          "path": "src/packages/excalidraw/CHANGELOG.md",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/package.json",
+          "event_type": "release",
+          "operation": "M"
+        }
+      ]
+    },
+    {
+      "tag": "v0.14.0",
+      "timestamp": 1673606309,
+      "datetime": "2023-01-13T10:38:29+00:00",
+      "files_affected": 2,
+      "files": [
+        {
+          "path": "src/packages/excalidraw/CHANGELOG.md",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/package.json",
+          "event_type": "release",
+          "operation": "M"
+        }
+      ]
+    },
+    {
+      "tag": "v0.14.1",
+      "timestamp": 1673865483,
+      "datetime": "2023-01-16T10:38:03+00:00",
+      "files_affected": 2,
+      "files": [
+        {
+          "path": "src/packages/excalidraw/CHANGELOG.md",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/package.json",
+          "event_type": "release",
+          "operation": "M"
+        }
+      ]
+    },
+    {
+      "tag": "v0.14.2",
+      "timestamp": 1675258736,
+      "datetime": "2023-02-01T13:38:56+00:00",
+      "files_affected": 2,
+      "files": [
+        {
+          "path": "src/packages/excalidraw/CHANGELOG.md",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/package.json",
+          "event_type": "release",
+          "operation": "M"
+        }
+      ]
+    },
+    {
+      "tag": "v0.15.0",
+      "timestamp": 1681831110,
+      "datetime": "2023-04-18T15:18:30+00:00",
+      "files_affected": 2,
+      "files": [
+        {
+          "path": "src/packages/excalidraw/CHANGELOG.md",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/package.json",
+          "event_type": "release",
+          "operation": "M"
+        }
+      ]
+    },
+    {
+      "tag": "v0.16.0",
+      "timestamp": 1695133793,
+      "datetime": "2023-09-19T14:29:53+00:00",
+      "files_affected": 2,
+      "files": [
+        {
+          "path": "src/packages/excalidraw/CHANGELOG.md",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/package.json",
+          "event_type": "release",
+          "operation": "M"
+        }
+      ]
+    },
+    {
+      "tag": "v0.16.1",
+      "timestamp": 1695270243,
+      "datetime": "2023-09-21T04:24:03+00:00",
+      "files_affected": 6,
+      "files": [
+        {
+          "path": "src/components/App.tsx",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/components/ColorPicker/ColorInput.tsx",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/components/ColorPicker/ColorPicker.tsx",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/components/EyeDropper.tsx",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/components/LayerUI.tsx",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/hooks/useStable.ts",
+          "event_type": "release",
+          "operation": "M"
+        }
+      ]
+    },
+    {
+      "tag": "v0.17.0",
+      "timestamp": 1699971874,
+      "datetime": "2023-11-14T14:24:34+00:00",
+      "files_affected": 13,
+      "files": [
+        {
+          "path": "src/packages/excalidraw/CHANGELOG.md",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "dev-docs/docs/@excalidraw/excalidraw/api/children-components/sidebar.mdx",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "dev-docs/docs/@excalidraw/excalidraw/api/excalidraw-element-skeleton.mdx",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "dev-docs/docs/@excalidraw/excalidraw/api/props/{ref.mdx => excalidraw-api.mdx}",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "dev-docs/docs/@excalidraw/excalidraw/api/props/props.mdx",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "dev-docs/docs/@excalidraw/excalidraw/api/props/ui-options.mdx",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "dev-docs/docs/@excalidraw/excalidraw/api/utils/utils-intro.md",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "dev-docs/docs/@excalidraw/excalidraw/faq.mdx",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "dev-docs/docs/@excalidraw/excalidraw/integration.mdx",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "dev-docs/docusaurus.config.js",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "dev-docs/package.json",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "dev-docs/sidebars.js",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "dev-docs/yarn.lock",
+          "event_type": "release",
+          "operation": "M"
+        }
+      ]
+    },
+    {
+      "tag": "v0.17.3",
+      "timestamp": 1707485512,
+      "datetime": "2024-02-09T13:31:52+00:00",
+      "files_affected": 11,
+      "files": [
+        {
+          "path": "src/data/__snapshots__/transform.test.ts.snap",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/data/transform.test.ts",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/element/newElement.ts",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/packages/excalidraw/CHANGELOG.md",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/tests/__snapshots__/contextmenu.test.tsx.snap",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/tests/__snapshots__/dragCreate.test.tsx.snap",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/tests/__snapshots__/move.test.tsx.snap",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/tests/__snapshots__/multiPointCreate.test.tsx.snap",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/tests/__snapshots__/regressionTests.test.tsx.snap",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/tests/__snapshots__/selection.test.tsx.snap",
+          "event_type": "release",
+          "operation": "M"
+        },
+        {
+          "path": "src/tests/data/__snapshots__/restore.test.ts.snap",
+          "event_type": "release",
+          "operation": "M"
+        }
+      ]
+    },
+    {
+      "tag": "v0.18.0",
+      "timestamp": 1741697050,
+      "datetime": "2025-03-11T12:44:10+00:00",
+      "files_affected": 1,
+      "files": [
+        {
+          "path": "packages/excalidraw/CHANGELOG.md",
+          "event_type": "release",
+          "operation": "M"
+        }
+      ]
+    }
+  ]
+}
