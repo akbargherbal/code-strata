@@ -7,6 +7,7 @@ A practical guide showing which datasets illustrate each glossary concept, with 
 ## Core Metrics
 
 ### Change Frequency
+
 **Definition:** Number of times a file has been modified (committed).
 
 **Best Dataset:** `file_lifecycle.json`, `file_index.json`
@@ -30,6 +31,7 @@ hot_files = change_freq.nlargest(10, 'change_frequency')
 ```
 
 **Alternative - file_index.json:**
+
 ```python
 with open('output/metadata/file_index.json') as f:
     index = json.load(f)
@@ -42,6 +44,7 @@ hot_files = df.nlargest(10, 'total_commits')
 ---
 
 ### Churn
+
 **Definition:** Total volume of code change (lines added + lines deleted).
 
 **Best Dataset:** `file_lifecycle.json`, `file_metrics_index.json`
@@ -71,6 +74,7 @@ top_churn = churn.nlargest(10, 'churn')
 ```
 
 **Alternative - file_metrics_index.json:**
+
 ```python
 with open('output/frontend/file_metrics_index.json') as f:
     metrics = json.load(f)
@@ -89,6 +93,7 @@ churn_data = pd.DataFrame([
 ---
 
 ### Net Change
+
 **Definition:** Difference between lines added and removed (growth indicator).
 
 **Best Dataset:** `file_lifecycle.json`, `file_metrics_index.json`
@@ -116,6 +121,7 @@ net_changes = pd.DataFrame([
 ---
 
 ### Bus Factor
+
 **Definition:** Minimum number of people who need to be unavailable before project is in trouble.
 
 **Best Dataset:** `file_index.json`, `file_metrics_index.json`
@@ -135,7 +141,7 @@ single_owner = files_df[files_df['unique_authors'] == 1]
 author_distribution = files_df['unique_authors'].describe()
 
 # Files by author count
-pd.cut(files_df['unique_authors'], bins=[0, 1, 2, 4, 100], 
+pd.cut(files_df['unique_authors'], bins=[0, 1, 2, 4, 100],
        labels=['High Risk (1)', 'Medium (2)', 'Medium (3-4)', 'Low (5+)']).value_counts()
 ```
 
@@ -144,6 +150,7 @@ pd.cut(files_df['unique_authors'], bins=[0, 1, 2, 4, 100],
 ## Activity Patterns
 
 ### Hot Files
+
 **Definition:** Files with exceptionally high change frequency (>50 commits).
 
 **Best Dataset:** `file_lifecycle.json`, `temporal_activity_map.json`
@@ -171,6 +178,7 @@ hot_files_sorted = hot_files.sort_values('commits', ascending=False)
 ---
 
 ### Dormant Files
+
 **Definition:** Files with zero or very low change frequency over extended period.
 
 **Best Dataset:** `file_index.json`, `file_metrics_index.json`
@@ -197,6 +205,7 @@ dormant_files = pd.DataFrame([
 ---
 
 ### Cold Zones
+
 **Definition:** Entire directories/modules with minimal activity.
 
 **Best Dataset:** `directory_stats.json`, `temporal_activity_map.json`
@@ -228,6 +237,7 @@ cold_zones = dirs_df[dirs_df['commits'] < dirs_df['commits'].quantile(0.1)]
 ---
 
 ### Activity Heatmap
+
 **Definition:** Visual grid showing file activity intensity.
 
 **Best Dataset:** `temporal_activity_map.json`
@@ -253,8 +263,8 @@ for dir_path, weeks in activity_map['data'].items():
 heatmap_df = pd.DataFrame(rows)
 
 # Pivot for visualization
-heatmap_pivot = heatmap_df.pivot(index='directory', 
-                                  columns='week', 
+heatmap_pivot = heatmap_df.pivot(index='directory',
+                                  columns='week',
                                   values='commits').fillna(0)
 ```
 
@@ -263,6 +273,7 @@ heatmap_pivot = heatmap_df.pivot(index='directory',
 ## Temporal Analysis
 
 ### Story Arc
+
 **Definition:** Narrative of repository evolution over time.
 
 **Best Dataset:** `temporal_monthly.json`, `temporal_daily.json`
@@ -287,6 +298,7 @@ months_df['growth_rate'] = months_df['files_changed'].pct_change()
 ---
 
 ### Creation Burst
+
 **Definition:** Period where many new files are added rapidly.
 
 **Best Dataset:** `file_lifecycle.json`, `temporal_daily.json`
@@ -313,6 +325,7 @@ creation_bursts = daily_creations[daily_creations['files_created'] > burst_thres
 ---
 
 ### Stabilization Period
+
 **Definition:** Phase where change frequency decreases but size remains constant.
 
 **Best Dataset:** `temporal_monthly.json`
@@ -340,6 +353,7 @@ stabilization_periods = months_df[months_df['is_stabilization']]
 ---
 
 ### Refactoring Event
+
 **Definition:** High churn with low net change (code restructuring).
 
 **Best Dataset:** `file_lifecycle.json`
@@ -379,6 +393,7 @@ refactoring_weeks = weekly[
 ---
 
 ### Migration Pattern
+
 **Definition:** Shift in development focus from one area to another over time.
 
 **Best Dataset:** `temporal_activity_map.json`, `directory_stats.json`
@@ -403,8 +418,8 @@ timeline_df = pd.DataFrame(timeline)
 # Calculate each directory's share of total activity per week
 total_by_week = timeline_df.groupby('week')['commits'].sum()
 timeline_df = timeline_df.merge(
-    total_by_week.rename('total'), 
-    left_on='week', 
+    total_by_week.rename('total'),
+    left_on='week',
     right_index=True
 )
 timeline_df['share'] = timeline_df['commits'] / timeline_df['total']
@@ -417,6 +432,7 @@ migration_trends = migration.diff().mean().sort_values(ascending=False)
 ---
 
 ### Release Cycle
+
 **Definition:** Recurring activity patterns aligned with releases.
 
 **Best Dataset:** `release_snapshots.json`, `temporal_daily.json`
@@ -456,6 +472,7 @@ pre_release_activity = daily_df[daily_df.get('pre_release', False)]
 ## Collaboration Metrics
 
 ### Collaboration Topology
+
 **Definition:** Network of relationships between contributors.
 
 **Best Dataset:** `author_network.json`
@@ -473,9 +490,9 @@ edges_df = pd.DataFrame(network['edges'])
 # Calculate author centrality (degree)
 author_connections = edges_df.groupby('source').size().reset_index(name='connections')
 authors_with_centrality = authors_df.merge(
-    author_connections, 
-    left_on='id', 
-    right_on='source', 
+    author_connections,
+    left_on='id',
+    right_on='source',
     how='left'
 ).fillna(0)
 
@@ -486,6 +503,7 @@ central_authors = authors_with_centrality.nlargest(10, 'connections')
 ---
 
 ### Collaboration Intensity
+
 **Definition:** Degree to which multiple contributors work on same files.
 
 **Best Dataset:** `file_metrics_index.json`, `file_index.json`
@@ -516,6 +534,7 @@ distributed_ownership = collab_intensity[
 ---
 
 ### Knowledge Silo
+
 **Definition:** Files maintained by single contributor or small group.
 
 **Best Dataset:** `file_metrics_index.json`, `file_index.json`
@@ -530,7 +549,7 @@ knowledge_silos = pd.DataFrame([
         'author_count': len(m['identifiers']['author_ids'])
     }
     for path, m in metrics.items()
-    if (len(m['identifiers']['author_ids']) <= 2 or 
+    if (len(m['identifiers']['author_ids']) <= 2 or
         m['identifiers']['primary_author_percentage'] > 0.8)
 ])
 
@@ -541,6 +560,7 @@ worst_silos = knowledge_silos[knowledge_silos['primary_percentage'] == 1.0]
 ---
 
 ### Single-Owner Files
+
 **Definition:** Files modified by only one contributor (maximum risk).
 
 **Best Dataset:** `file_index.json`
@@ -565,6 +585,7 @@ high_risk_silos = single_owner.nlargest(20, 'risk_score')
 ## Code Health Indicators
 
 ### Velocity
+
 **Definition:** Rate of development activity (commits per time period).
 
 **Best Dataset:** `temporal_daily.json`, `temporal_monthly.json`
@@ -592,6 +613,7 @@ monthly_velocity = daily_df.resample('M', on='date').agg({
 ---
 
 ### Dependency Churn
+
 **Definition:** Frequency of changes to dependency files.
 
 **Best Dataset:** `file_lifecycle.json`
@@ -629,6 +651,7 @@ dep_churn['churn_rate'] = dep_churn['commits'] / (dep_churn['days_active'] + 1)
 ## Advanced Concepts
 
 ### Temporal Coupling
+
 **Definition:** Files frequently modified together in same commits.
 
 **Best Dataset:** `cochange_network.json`, `file_metrics_index.json`
@@ -662,6 +685,7 @@ strong_couplings = coupling_df[coupling_df['strength'] > 0.5]
 ---
 
 ### Abandonment/Resurrection
+
 **Definition:** Files that go dormant then become active again.
 
 **Best Dataset:** `file_lifecycle.json`
@@ -673,16 +697,16 @@ resurrection_cases = []
 for path, events in data['files'].items():
     if len(events) < 2:
         continue
-    
+
     # Calculate time gaps
     timestamps = [e['timestamp'] for e in events]
     timestamps.sort()
-    
+
     gaps = []
     for i in range(1, len(timestamps)):
         gap_days = (timestamps[i] - timestamps[i-1]) / 86400
         gaps.append(gap_days)
-    
+
     # Find long dormancies (>180 days)
     max_gap = max(gaps) if gaps else 0
     if max_gap > 180:
@@ -703,6 +727,7 @@ resurrections = resurrections.sort_values('max_dormancy_days', ascending=False)
 ## Visualization Concepts
 
 ### Treemap
+
 **Definition:** Hierarchical visualization where rectangles represent files/directories.
 
 **Best Dataset:** `project_hierarchy.json`
@@ -714,7 +739,7 @@ with open('output/frontend/project_hierarchy.json') as f:
 # Flatten tree for treemap data
 def flatten_tree(node, parent_path=''):
     path = f"{parent_path}/{node['name']}" if parent_path else node['name']
-    
+
     result = [{
         'path': path,
         'name': node['name'],
@@ -723,10 +748,10 @@ def flatten_tree(node, parent_path=''):
         'health_score': node['stats'].get('health_score_avg', 0),
         'files_count': node['stats']['total_files']
     }]
-    
+
     for child in node.get('children', []):
         result.extend(flatten_tree(child, path))
-    
+
     return result
 
 treemap_data = pd.DataFrame(flatten_tree(hierarchy['tree']))
@@ -740,6 +765,7 @@ treemap_data = pd.DataFrame(flatten_tree(hierarchy['tree']))
 ## Statistical Analysis
 
 ### Percentile Analysis
+
 **Definition:** Identify files in top/bottom percentages of activity.
 
 **Best Dataset:** `file_index.json`
@@ -772,30 +798,37 @@ print(percentiles)
 The following glossary items cannot be fully illustrated with the available datasets:
 
 ### 1. **Test Coverage Trend**
+
 - Requires: Test execution results, coverage reports over time
 - Not available in current git history analysis
 
 ### 2. **Test-to-Source Ratio**
+
 - Requires: Test file identification and correlation with source files
 - Partial support: Can identify test files by pattern, but no explicit test metadata
 
 ### 3. **Documentation Ratio / Documentation Lag**
+
 - Requires: Documentation file identification
 - Partial support: Can filter for .md files, but no semantic doc-code linking
 
 ### 4. **Complexity Drift**
+
 - Requires: Code complexity metrics (cyclomatic, nesting depth)
 - Not available: Need static analysis tools integration
 
 ### 5. **Copy/Paste Detection**
+
 - Requires: Code similarity analysis
 - Not available: Need specialized duplication detection tools
 
 ### 6. **Commit Message Analysis**
+
 - Available: Commit subjects are in `file_lifecycle.json`
 - Limitation: No pre-computed topic clustering or sentiment analysis
 
 **Workaround for partial support:**
+
 ```python
 # Example: Identify test files
 test_files = files_df[
@@ -830,26 +863,26 @@ from datetime import datetime, timezone, timedelta
 
 def analyze_repository_metrics(output_dir='output'):
     """Comprehensive repository metrics analysis"""
-    
+
     # Load datasets
     with open(f'{output_dir}/file_lifecycle.json') as f:
         lifecycle = json.load(f)
-    
+
     with open(f'{output_dir}/metadata/file_index.json') as f:
         file_index = json.load(f)
-    
+
     with open(f'{output_dir}/frontend/file_metrics_index.json') as f:
         metrics_index = json.load(f)
-    
+
     results = {}
-    
+
     # 1. Hot Files (Change Frequency)
     change_freq = pd.DataFrame([
-        {'file': p, 'commits': len(e)} 
+        {'file': p, 'commits': len(e)}
         for p, e in lifecycle['files'].items()
     ])
     results['hot_files'] = change_freq.nlargest(10, 'commits')
-    
+
     # 2. High Churn Files
     churn_data = pd.DataFrame([
         {
@@ -860,7 +893,7 @@ def analyze_repository_metrics(output_dir='output'):
         for path, m in metrics_index.items()
     ])
     results['high_churn'] = churn_data.nlargest(10, 'churn')
-    
+
     # 3. Knowledge Silos
     silos = pd.DataFrame([
         {
@@ -871,7 +904,7 @@ def analyze_repository_metrics(output_dir='output'):
         for path, m in metrics_index.items()
     ])
     results['silos'] = silos[silos['authors'] == 1]
-    
+
     # 4. Temporal Coupling
     coupling = pd.DataFrame([
         {
@@ -883,7 +916,7 @@ def analyze_repository_metrics(output_dir='output'):
         for p in m['coupling']['top_partners']
     ])
     results['strong_coupling'] = coupling[coupling['strength'] > 0.5]
-    
+
     return results
 
 # Run analysis
@@ -902,5 +935,5 @@ print(f"\nStrong Couplings: {len(metrics['strong_coupling'])} pairs")
 
 ---
 
-*Generated: January 2026*
-*Compatible with: strata.py v2.2.0 datasets*
+_Generated: January 2026_
+_Compatible with: strata.py v2.2.0 datasets_

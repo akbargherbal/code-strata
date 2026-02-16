@@ -3,6 +3,7 @@
 This document maps each concept from the Repository Metrics Glossary to the data structures available in `strata.py`, showing how to calculate or derive each metric.
 
 **Legend:**
+
 - ✅ **Direct**: Data directly available in output
 - 🔄 **Derivable**: Can be calculated from available data
 - 🔧 **Requires Processing**: Needs additional computation or aggregation
@@ -13,16 +14,19 @@ This document maps each concept from the Repository Metrics Glossary to the data
 ## Core Metrics
 
 ### Change Frequency ✅
+
 **Data Source:** `FileMetadataAggregator` → `files[file_path]["total_commits"]`  
 **Also Available In:** Core lifecycle → `len(files[file_path])`
 
 **Calculation:**
+
 ```python
 change_frequency = len(files[file_path])  # Number of commits touching this file
 commits_per_day = file_metadata["commits_per_day"]  # Pre-calculated rate
 ```
 
 **Related Fields:**
+
 - `files[file_path]` - array of all commit events for the file
 - `total_commits` - count per file in FileMetadataAggregator
 - `age_days` - file lifespan for normalization
@@ -30,9 +34,11 @@ commits_per_day = file_metadata["commits_per_day"]  # Pre-calculated rate
 ---
 
 ### Churn 🔄
+
 **Data Source:** Core lifecycle → `files[file_path][*]["lines_added"]` + `files[file_path][*]["lines_deleted"]`
 
 **Calculation:**
+
 ```python
 churn = sum(
     event["lines_added"] + event["lines_deleted"]
@@ -41,6 +47,7 @@ churn = sum(
 ```
 
 **Per-Commit Churn:**
+
 ```python
 commit_churn = event["lines_added"] + event["lines_deleted"]
 ```
@@ -50,9 +57,11 @@ commit_churn = event["lines_added"] + event["lines_deleted"]
 ---
 
 ### Net Change 🔄
+
 **Data Source:** Core lifecycle → `files[file_path][*]["lines_added"]` - `files[file_path][*]["lines_deleted"]`
 
 **Calculation:**
+
 ```python
 net_change = sum(
     event["lines_added"] - event["lines_deleted"]
@@ -61,6 +70,7 @@ net_change = sum(
 ```
 
 **Interpretation:**
+
 - Positive = file grew
 - Negative = file shrank
 - Near zero with high churn = refactoring activity
@@ -68,14 +78,17 @@ net_change = sum(
 ---
 
 ### Bus Factor 🔧
+
 **Data Source:** `AuthorNetworkAggregator` + `FileMetadataAggregator`
 
 **Requires:**
+
 1. Count files per author: `file_authors[file_path]` (in AuthorNetworkAggregator)
 2. Identify single-owner files: `len(file_authors[file_path]) == 1`
 3. Calculate critical file concentration per author
 
 **Calculation Approach:**
+
 ```python
 # Files modified by each author
 author_files = defaultdict(set)
@@ -92,9 +105,11 @@ for file_path, authors in file_authors.items():
 ## Activity Patterns
 
 ### Hot Files 🔄
+
 **Data Source:** `FileMetadataAggregator` → sorted by `total_commits`
 
 **Identification:**
+
 ```python
 # Sort files by commit count
 hot_files = sorted(
@@ -109,6 +124,7 @@ hot_files = [f for f, meta in files.items() if meta["total_commits"] > threshold
 ```
 
 **Supporting Data:**
+
 - `unique_authors` - multiple contributors indicator
 - `commits_per_day` - activity rate
 - Temporal data to check consistency across time
@@ -116,9 +132,11 @@ hot_files = [f for f, meta in files.items() if meta["total_commits"] > threshold
 ---
 
 ### Dormant Files 🔄
+
 **Data Source:** `FileMetadataAggregator` → `last_modified` vs current date
 
 **Identification:**
+
 ```python
 from datetime import datetime, timedelta
 
@@ -133,6 +151,7 @@ dormant_files = {
 ```
 
 **Consider:**
+
 - `age_days` - total file lifespan
 - `total_commits` - historical activity level
 - Recent activity in temporal aggregations
@@ -140,9 +159,11 @@ dormant_files = {
 ---
 
 ### Cold Zones 🔄
+
 **Data Source:** `FileHierarchyAggregator` → directory-level statistics
 
 **Identification:**
+
 ```python
 # Low activity directories
 cold_directories = {
@@ -153,6 +174,7 @@ cold_directories = {
 ```
 
 **Available Fields:**
+
 - `commits` - total changes in directory
 - `unique_files` - number of files
 - `unique_authors` - contributor count
@@ -161,9 +183,11 @@ cold_directories = {
 ---
 
 ### Activity Heatmap 🔧
+
 **Data Source:** Combination of `FileMetadataAggregator` + `FileHierarchyAggregator`
 
 **Data Structure:**
+
 ```python
 heatmap_data = {
     file_path: {
@@ -183,9 +207,11 @@ heatmap_data = {
 ## Temporal Analysis
 
 ### Story Arc ✅
+
 **Data Source:** `TemporalAggregator` → `daily` and `monthly` aggregations
 
 **Direct Access:**
+
 ```python
 # Timeline of repository evolution
 timeline = temporal["daily"]  # or temporal["monthly"]
@@ -206,9 +232,11 @@ for date, stats in timeline.items():
 ---
 
 ### Creation Burst 🔄
+
 **Data Source:** `TemporalAggregator` + operation types
 
 **Identification:**
+
 ```python
 # Find periods with high "A" (Add) operations
 creation_bursts = []
@@ -226,30 +254,35 @@ for date, stats in temporal["daily"].items():
 ---
 
 ### Stabilization Period 🔄
+
 **Data Source:** `TemporalAggregator` + churn analysis over time
 
 **Characteristics to Detect:**
+
 ```python
 # Low churn, consistent commit rate, high M/D vs A ratio
 for date, stats in temporal["monthly"].items():
     modifications = stats["operations"].get("M", 0)
     additions = stats["operations"].get("A", 0)
-    
+
     if modifications > additions * 5 and stats["commits"] < avg_commits:
         # Potential stabilization period
         pass
 ```
 
 **Supporting Data:**
+
 - Core lifecycle for per-file churn calculation
 - Commit message patterns (if available)
 
 ---
 
 ### Refactoring Event 🔄
+
 **Data Source:** Core lifecycle → high churn + low net change
 
 **Detection:**
+
 ```python
 # Analyze specific time windows
 from datetime import datetime
@@ -260,10 +293,10 @@ def analyze_period(start_date, end_date):
         for event in file_events
         if start_date <= event["timestamp"] <= end_date
     ]
-    
+
     total_churn = sum(e["lines_added"] + e["lines_deleted"] for e in period_events)
     net_change = sum(e["lines_added"] - e["lines_deleted"] for e in period_events)
-    
+
     if total_churn > 1000 and abs(net_change) < total_churn * 0.1:
         return "Refactoring period"
 ```
@@ -271,9 +304,11 @@ def analyze_period(start_date, end_date):
 ---
 
 ### Migration Pattern 🔄
+
 **Data Source:** `FileHierarchyAggregator` → track directory activity over time
 
 **Analysis:**
+
 ```python
 # Compare directory commit distribution across time periods
 early_period = filter_by_date(commits, start, mid)
@@ -291,9 +326,11 @@ for dir_path in directories:
 ---
 
 ### Release Cycle 🔄
+
 **Data Source:** `TemporalAggregator` → detect periodic patterns
 
 **Detection:**
+
 ```python
 # Look for recurring peaks in commit activity
 from scipy import signal  # External library needed
@@ -309,9 +346,11 @@ peaks, _ = signal.find_peaks(commit_series, height=threshold, distance=min_days_
 ## Collaboration Metrics
 
 ### Collaboration Topology ✅
+
 **Data Source:** `AuthorNetworkAggregator`
 
 **Direct Access:**
+
 ```python
 network = author_network_aggregator.finalize()
 
@@ -329,9 +368,11 @@ total_authors = network["statistics"]["total_authors"]
 ---
 
 ### Collaboration Intensity ✅
+
 **Data Source:** `FileMetadataAggregator` → `unique_authors` per file
 
 **Direct Access:**
+
 ```python
 high_collaboration_files = {
     file_path: meta
@@ -348,9 +389,11 @@ avg_authors_per_file = sum(
 ---
 
 ### Knowledge Silo 🔄
+
 **Data Source:** `AuthorNetworkAggregator` + `FileMetadataAggregator`
 
 **Identification:**
+
 ```python
 # Single or very few authors per file
 knowledge_silos = {
@@ -370,21 +413,23 @@ critical_silos = {
 ---
 
 ### Handoff Event 🔧
+
 **Data Source:** Core lifecycle → analyze author sequence over time
 
 **Detection:**
+
 ```python
 def detect_handoffs(file_path):
     events = files[file_path]
     handoffs = []
-    
+
     # Group by time windows
     current_author = None
     current_window_start = None
-    
+
     for event in sorted(events, key=lambda x: x["timestamp"]):
         author = event["author_email"]
-        
+
         if current_author and author != current_author:
             time_gap = event["timestamp"] - current_window_start
             if time_gap > 30 * 86400:  # 30 days gap
@@ -393,19 +438,21 @@ def detect_handoffs(file_path):
                     "to": author,
                     "timestamp": event["timestamp"]
                 })
-        
+
         current_author = author
         current_window_start = event["timestamp"]
-    
+
     return handoffs
 ```
 
 ---
 
 ### Single-Owner Files ✅
+
 **Data Source:** `FileMetadataAggregator` → `unique_authors == 1`
 
 **Direct Identification:**
+
 ```python
 single_owner_files = {
     file_path: meta
@@ -424,9 +471,11 @@ for file_path, meta in single_owner_files.items():
 ## Code Health Indicators
 
 ### Test Coverage Trend ❌
+
 **Status:** Not directly available (requires code analysis tools)
 
 **Possible Proxy:**
+
 ```python
 # Track changes to test files over time
 test_files = [
@@ -441,20 +490,22 @@ source_activity = sum(len(events) for f, events in files.items() if f not in tes
 ---
 
 ### Test-to-Source Ratio 🔄
+
 **Data Source:** Core lifecycle → filter by file type
 
 **Calculation:**
+
 ```python
 def categorize_files(files):
     test_files = {}
     source_files = {}
-    
+
     for file_path, events in files.items():
         if is_test_file(file_path):
             test_files[file_path] = events
         else:
             source_files[file_path] = events
-    
+
     test_churn = sum(
         e["lines_added"] + e["lines_deleted"]
         for events in test_files.values()
@@ -465,16 +516,18 @@ def categorize_files(files):
         for events in source_files.values()
         for e in events
     )
-    
+
     return test_churn / source_churn if source_churn > 0 else 0
 ```
 
 ---
 
 ### Documentation Ratio 🔄
+
 **Data Source:** Core lifecycle → filter documentation files
 
 **Calculation:**
+
 ```python
 doc_patterns = [".md", ".rst", ".txt", "README", "docs/"]
 
@@ -492,14 +545,16 @@ doc_ratio = doc_commits / total_commits
 ---
 
 ### Documentation Lag 🔧
+
 **Data Source:** Core lifecycle → temporal analysis of doc vs source changes
 
 **Detection:**
+
 ```python
 def calculate_doc_lag(file_path, doc_file_path):
     source_events = sorted(files[file_path], key=lambda x: x["timestamp"])
     doc_events = sorted(files[doc_file_path], key=lambda x: x["timestamp"])
-    
+
     lags = []
     for source_event in source_events:
         # Find next doc update after source change
@@ -510,16 +565,18 @@ def calculate_doc_lag(file_path, doc_file_path):
         if next_doc:
             lag_days = (next_doc["timestamp"] - source_event["timestamp"]) / 86400
             lags.append(lag_days)
-    
+
     return sum(lags) / len(lags) if lags else float("inf")
 ```
 
 ---
 
 ### Dependency Churn 🔄
+
 **Data Source:** Core lifecycle → filter dependency files
 
 **Identification:**
+
 ```python
 dependency_files = [
     "package.json", "requirements.txt", "Gemfile", "pom.xml",
@@ -542,9 +599,11 @@ for dep_file in dependency_files:
 ---
 
 ### Velocity ✅
+
 **Data Source:** `TemporalAggregator` + performance metrics
 
 **Direct Calculation:**
+
 ```python
 # Commits per time period
 from temporal aggregator:
@@ -568,19 +627,21 @@ commits_per_second = metrics["commits_processed"] / metrics["total_time"]
 ## Advanced Concepts
 
 ### Copy/Paste Detection 🔧
+
 **Data Source:** Core lifecycle → analyze similar changes across files
 
 **Approach:**
+
 ```python
 def detect_similar_changes(time_window=3600):  # 1 hour
     # Group changes by commit time
     time_buckets = defaultdict(list)
-    
+
     for file_path, events in files.items():
         for event in events:
             bucket = event["timestamp"] // time_window
             time_buckets[bucket].append((file_path, event))
-    
+
     # Look for similar line changes in same bucket
     for bucket, changes in time_buckets.items():
         # Check if multiple files have identical lines_added/lines_deleted
@@ -588,7 +649,7 @@ def detect_similar_changes(time_window=3600):  # 1 hour
         for file_path, event in changes:
             key = (event["lines_added"], event["lines_deleted"])
             similar[key].append(file_path)
-        
+
         # Report potential copy/paste
         for key, file_list in similar.items():
             if len(file_list) > 1:
@@ -598,17 +659,19 @@ def detect_similar_changes(time_window=3600):  # 1 hour
 ---
 
 ### Complexity Drift ❌
+
 **Status:** Requires static code analysis (not available)
 
 **Proxy Indicator:**
+
 ```python
 # File size growth without splitting
 def track_file_growth(file_path):
     events = files[file_path]
-    
+
     cumulative_size = 0
     growth_over_time = []
-    
+
     for event in sorted(events, key=lambda x: x["timestamp"]):
         cumulative_size += (event["lines_added"] - event["lines_deleted"])
         growth_over_time.append({
@@ -616,24 +679,26 @@ def track_file_growth(file_path):
             "size": cumulative_size,
             "churn": event["lines_added"] + event["lines_deleted"]
         })
-    
+
     return growth_over_time
 ```
 
 ---
 
 ### Abandonment/Resurrection 🔄
+
 **Data Source:** Core lifecycle → analyze activity gaps
 
 **Detection:**
+
 ```python
 def find_abandonment_resurrection(file_path, gap_threshold=180):
     events = sorted(files[file_path], key=lambda x: x["timestamp"])
-    
+
     patterns = []
     for i in range(len(events) - 1):
         gap_days = (events[i+1]["timestamp"] - events[i]["timestamp"]) / 86400
-        
+
         if gap_days > gap_threshold:
             patterns.append({
                 "file": file_path,
@@ -642,16 +707,18 @@ def find_abandonment_resurrection(file_path, gap_threshold=180):
                 "gap_days": gap_days,
                 "resurrector": events[i+1]["author_email"]
             })
-    
+
     return patterns
 ```
 
 ---
 
 ### Temporal Coupling 🔄
+
 **Data Source:** `CochangeNetworkAggregator`
 
 **Direct Access:**
+
 ```python
 cochange_network = cochange_aggregator.finalize()
 
@@ -670,6 +737,7 @@ for edge in temporal_couplings[:10]:
 ```
 
 **Fields Available:**
+
 - `source`, `target` - coupled file paths
 - `cochange_count` - times changed together
 - `coupling_strength` - normalized frequency
@@ -677,9 +745,11 @@ for edge in temporal_couplings[:10]:
 ---
 
 ### Commit Message Analysis ✅
+
 **Data Source:** Core lifecycle → `commit_subject`
 
 **Basic Analysis:**
+
 ```python
 from collections import Counter
 
@@ -715,9 +785,11 @@ common_words = Counter(all_words).most_common(20)
 ## Repository Types
 
 ### Monorepo Detection 🔄
+
 **Data Source:** `FileHierarchyAggregator`
 
 **Identification:**
+
 ```python
 # Look for multiple independent project roots
 top_level_dirs = [
@@ -742,9 +814,11 @@ is_monorepo = len(potential_projects) > 1
 ## Statistical Analysis
 
 ### Median vs Mean ✅
+
 **Data Source:** Any aggregated metric
 
 **Calculation:**
+
 ```python
 import statistics
 
@@ -764,9 +838,11 @@ print(f"Standard Deviation: {std_dev:.2f}")
 ---
 
 ### Percentile Analysis 🔄
+
 **Data Source:** Any metric distribution
 
 **Calculation:**
+
 ```python
 import numpy as np
 
@@ -798,6 +874,7 @@ hot_files_95 = [
 **Data Source:** Core lifecycle → `temporal` field (Phase 5)
 
 **Available Temporal Labels per Event:**
+
 ```python
 event = files["some_file.py"][0]
 
@@ -813,6 +890,7 @@ temporal_labels = event["temporal"]
 ```
 
 **Filtering by Time Windows:**
+
 ```python
 # Get all events in Q2 2024
 q2_2024_events = [
@@ -834,13 +912,13 @@ from datetime import datetime, timedelta
 def rolling_window_metrics(window_days=90):
     end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=window_days)
-    
+
     window_events = [
         event for file_events in files.values()
         for event in file_events
         if start_date.timestamp() <= event["timestamp"] <= end_date.timestamp()
     ]
-    
+
     return {
         "commits": len(window_events),
         "files_changed": len(set(e["file_path"] for e in window_events)),
@@ -857,6 +935,7 @@ def rolling_window_metrics(window_days=90):
 **Data Source:** Core lifecycle → `author_id`, `author_domain` (Phase 5)
 
 **Available Fields:**
+
 ```python
 event = files["some_file.py"][0]
 
@@ -870,6 +949,7 @@ author_domain = event["author_domain"]  # Email domain or "unknown"
 ```
 
 **Analysis by Domain:**
+
 ```python
 from collections import defaultdict
 
@@ -898,6 +978,7 @@ for domain, stats in sorted(
 **Data Source:** Core lifecycle → `sequence`, `is_first`, `is_last` (Phase 5)
 
 **Available Fields:**
+
 ```python
 for event in files["some_file.py"]:
     sequence = event["sequence"]      # 1-indexed position in file history
@@ -916,7 +997,7 @@ for file_path, events in files.items():
     lifecycle_length = len(events)
     created_by = events[0]["author_email"]
     last_modified_by = events[-1]["author_email"]
-    
+
     print(f"{file_path}:")
     print(f"  Created by: {created_by}")
     print(f"  Last modified by: {last_modified_by}")
@@ -928,6 +1009,7 @@ for file_path, events in files.items():
 ## Summary: Data Availability
 
 ### ✅ Directly Available (No Calculation)
+
 - Change frequency per file
 - Commit timestamps and temporal labels (year, quarter, month, week)
 - Author information (original + normalized)
@@ -939,6 +1021,7 @@ for file_path, events in files.items():
 - Position metrics (sequence, first/last)
 
 ### 🔄 Easily Derivable (Simple Calculation)
+
 - Churn (sum of additions + deletions)
 - Net change (additions - deletions)
 - Hot/cold files (threshold-based filtering)
@@ -950,6 +1033,7 @@ for file_path, events in files.items():
 - Statistical measures (median, percentiles)
 
 ### 🔧 Requires Processing (Complex Computation)
+
 - Bus factor (set cover algorithm)
 - Handoff events (author sequence analysis)
 - Documentation lag (temporal correlation)
@@ -959,6 +1043,7 @@ for file_path, events in files.items():
 - Release cycles (periodicity detection)
 
 ### ❌ Not Available (Requires Additional Tools)
+
 - Test coverage percentage (needs code analysis)
 - Cyclomatic complexity (needs static analysis)
 - Actual code quality metrics (needs linting tools)
@@ -970,6 +1055,7 @@ for file_path, events in files.items():
 ## Usage Examples
 
 ### Example 1: Identify High-Risk Knowledge Silos
+
 ```python
 # Combine multiple metrics for risk assessment
 risk_files = []
@@ -982,13 +1068,13 @@ for file_path, meta in file_metadata["files"].items():
             1 for e in events
             if e["timestamp"] > (time.time() - 90*86400)
         )
-        
+
         risk_score = (
             meta["total_commits"] * 0.4 +
             (3 - meta["unique_authors"]) * 30 +
             recent_activity * 0.2
         )
-        
+
         risk_files.append({
             "file": file_path,
             "authors": meta["unique_authors"],
@@ -1002,6 +1088,7 @@ risk_files.sort(key=lambda x: x["risk_score"], reverse=True)
 ```
 
 ### Example 2: Track Repository Evolution Story
+
 ```python
 # Combine temporal data with operation types
 story = []
@@ -1010,7 +1097,7 @@ for month, stats in temporal["monthly"].items():
     adds = stats["operations"].get("A", 0)
     mods = stats["operations"].get("M", 0)
     dels = stats["operations"].get("D", 0)
-    
+
     # Classify phase
     if adds > mods * 2:
         phase = "Rapid Growth"
@@ -1020,7 +1107,7 @@ for month, stats in temporal["monthly"].items():
         phase = "Stabilization"
     else:
         phase = "Normal Development"
-    
+
     story.append({
         "month": month,
         "phase": phase,
@@ -1031,26 +1118,27 @@ for month, stats in temporal["monthly"].items():
 ```
 
 ### Example 3: Collaboration Health Dashboard
+
 ```python
 # Multi-metric collaboration analysis
 def generate_collab_health():
     network = author_network_aggregator.finalize()
-    
+
     # Single-owner files (high risk)
     single_owner = sum(
         1 for meta in file_metadata["files"].values()
         if meta["unique_authors"] == 1
     )
-    
+
     # Network density (team connectivity)
     density = network["statistics"]["density"]
-    
+
     # Average collaborations per author
     avg_collabs = (
         sum(n["collaboration_count"] for n in network["nodes"])
         / len(network["nodes"])
     )
-    
+
     return {
         "network_density": density,
         "avg_collaborations_per_author": avg_collabs,

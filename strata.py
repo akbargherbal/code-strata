@@ -560,8 +560,6 @@ class DatasetAggregator:
         return len(json.dumps(data))
 
 
-# Note: I'll continue with the rest of the file in the next section
-# This file is getting long, so I'm splitting it into manageable parts
 # ============================================================================
 # PHASE 2 AGGREGATORS (OPTIMIZED)
 # ============================================================================
@@ -1800,20 +1798,24 @@ class GitFileLifecycle:
 
             # Check if it's a numstat line (3 parts: added, deleted, filename)
             if len(parts) == 3:
-                added_str, deleted_str, file_path = parts
+                try:
+                    added_str, deleted_str, file_path = parts
 
-                # Handle binary files or unreadable changes
-                lines_added = int(added_str) if added_str != "-" else 0
-                lines_deleted = int(deleted_str) if deleted_str != "-" else 0
+                    # Handle binary files or unreadable changes
+                    lines_added = int(added_str) if added_str != "-" else 0
+                    lines_deleted = int(deleted_str) if deleted_str != "-" else 0
 
-                # Infer operation (M for modifications with numstat)
-                # We'll set a default and let the git log context override if needed
-                return {
-                    "operation": "M",
-                    "file_path": file_path,
-                    "lines_added": lines_added,
-                    "lines_deleted": lines_deleted,
-                }
+                    # Infer operation (M for modifications with numstat)
+                    # We'll set a default and let the git log context override if needed
+                    return {
+                        "operation": "M",
+                        "file_path": file_path,
+                        "lines_added": lines_added,
+                        "lines_deleted": lines_deleted,
+                    }
+                except ValueError:
+                    # Not a numstat line (e.g. R100\told\tnew), fall through to legacy
+                    pass
 
             # Legacy format: status-based line (for renames/copies without numstat)
             # This might appear in some edge cases
@@ -2024,6 +2026,298 @@ class MetadataReportGenerator:
             self.pd = None
             self.pandas_available = False
 
+    def _get_dataset_schema(self, name: str):
+        """
+        Return (description, example_dict) for a known dataset type.
+        Used to render a representative JSON block in the metadata report.
+        """
+        schemas = {
+            "core_lifecycle": (
+                "Per-file event log. Each entry in `files[<path>]` is one commit that touched that file, enriched with temporal labels, author normalization, diff stats, and position metrics.",
+                {
+                    "files": {
+                        "src/main.py": [
+                            {
+                                "commit_hash": "abc123def456...",
+                                "timestamp": 1712927658,
+                                "datetime": "2024-04-12T13:14:18+00:00",
+                                "operation": "M",
+                                "author_name": "John Doe",
+                                "author_email": "john@example.com",
+                                "author_id": "john_doe_john",
+                                "author_domain": "example.com",
+                                "commit_subject": "refactor: extract helper",
+                                "temporal": {
+                                    "year": 2024,
+                                    "quarter": 2,
+                                    "month": 4,
+                                    "week_no": 15,
+                                    "day_of_week": 4,
+                                    "day_of_year": 103,
+                                },
+                                "lines_added": 15,
+                                "lines_deleted": 3,
+                                "sequence": 42,
+                                "is_first": False,
+                                "is_last": False,
+                            }
+                        ]
+                    },
+                    "total_commits": 156,
+                    "total_changes": 412,
+                    "schema_version": "1.1.0",
+                    "enhancements": {
+                        "temporal_labels": True,
+                        "author_normalization": True,
+                        "diff_stats": True,
+                        "position_metrics": True,
+                    },
+                },
+            ),
+            "file_metadata": (
+                "Per-file summary statistics: commit count, author breakdown, operation distribution, and activity velocity.",
+                {
+                    "schema_version": "1.0.0",
+                    "total_files": 24,
+                    "generation_method": "streaming",
+                    "quick_mode": False,
+                    "files": {
+                        "src/main.py": {
+                            "first_seen": "2024-01-10T08:00:00+00:00",
+                            "last_modified": "2024-04-12T13:14:18+00:00",
+                            "total_commits": 18,
+                            "unique_authors": 3,
+                            "top_authors": {
+                                "authors": [
+                                    {
+                                        "email": "alice@example.com",
+                                        "commit_count": 10,
+                                        "percentage": 55.6,
+                                    }
+                                ],
+                                "coverage_percentage": 72.2,
+                            },
+                            "operations": {"A": 1, "M": 17},
+                            "age_days": 92.21,
+                            "commits_per_day": 0.1953,
+                            "lifecycle_event_count": 18,
+                        }
+                    },
+                },
+            ),
+            "temporal_daily": (
+                "Daily aggregation: commit volume, files changed, active authors, and operation mix per calendar day.",
+                {
+                    "schema_version": "1.0.0",
+                    "aggregation_level": "daily",
+                    "total_days": 47,
+                    "days": {
+                        "2024-04-12": {
+                            "date": "2024-04-12",
+                            "commits": 3,
+                            "files_changed": 7,
+                            "unique_authors": 2,
+                            "operations": {"A": 1, "M": 5, "D": 1},
+                        }
+                    },
+                },
+            ),
+            "author_network": (
+                "Collaboration graph. Nodes are authors; edges connect pairs who co-modified at least one file, weighted by shared-file count.",
+                {
+                    "schema_version": "1.0.0",
+                    "network_type": "author_collaboration",
+                    "quick_mode": False,
+                    "edge_limit": None,
+                    "nodes": [
+                        {
+                            "id": "alice@example.com",
+                            "email": "alice@example.com",
+                            "commit_count": 42,
+                            "collaboration_count": 2,
+                        }
+                    ],
+                    "edges": [
+                        {
+                            "source": "alice@example.com",
+                            "target": "bob@example.com",
+                            "weight": 5,
+                            "shared_files": 3,
+                        }
+                    ],
+                    "statistics": {
+                        "total_authors": 4,
+                        "total_edges": 3,
+                        "density": 0.5,
+                    },
+                },
+            ),
+            "cochange_network": (
+                "File-coupling graph. Edges link files modified in the same commit, scored by coupling strength relative to total commits.",
+                {
+                    "schema_version": "1.0.0",
+                    "network_type": "file_cochange",
+                    "quick_mode": False,
+                    "pair_limit": None,
+                    "min_cochange_count": 2,
+                    "total_files": 8,
+                    "total_edges": 4,
+                    "edges": [
+                        {
+                            "source": "src/main.py",
+                            "target": "src/utils.py",
+                            "cochange_count": 6,
+                            "coupling_strength": 0.3846,
+                        }
+                    ],
+                },
+            ),
+            "directory_stats": (
+                "Directory-level rollup: file count, commit volume, author diversity, and an activity score (commits per contained file).",
+                {
+                    "schema_version": "1.0.0",
+                    "aggregation_type": "directory_hierarchy",
+                    "total_directories": 5,
+                    "directories": {
+                        "src": {
+                            "path": "src",
+                            "total_files": 9,
+                            "total_commits": 87,
+                            "unique_authors": 3,
+                            "operations": {"A": 9, "M": 74, "D": 4},
+                            "activity_score": 9.67,
+                        }
+                    },
+                },
+            ),
+            "milestone_snapshots": (
+                "Release snapshots pinned to git tags. Each snapshot lists the files touched at that tag, grouped by event type (`creation` or `release`).",
+                {
+                    "schema_version": "1.0.0",
+                    "snapshot_type": "release_milestones",
+                    "total_snapshots": 3,
+                    "snapshots": [
+                        {
+                            "tag": "v1.0",
+                            "timestamp": 1712927658,
+                            "datetime": "2024-04-12T13:14:18+00:00",
+                            "files_affected": 4,
+                            "files": [
+                                {
+                                    "path": "src/main.py",
+                                    "event_type": "creation",
+                                    "operation": "",
+                                },
+                                {
+                                    "path": "src/utils.py",
+                                    "event_type": "release",
+                                    "operation": "M",
+                                },
+                            ],
+                        }
+                    ],
+                },
+            ),
+            "project_hierarchy": (
+                "Recursive directory tree for Treemap Explorer. Leaf nodes are files with health scores and attributes; internal nodes aggregate stats bottom-up from their children.",
+                {
+                    "meta": {
+                        "generated_at": "2024-04-14T10:00:00+00:00",
+                        "root_path": "/",
+                        "repository_name": "my-project",
+                    },
+                    "tree": {
+                        "name": "root",
+                        "path": "",
+                        "type": "directory",
+                        "stats": {"total_commits": 156, "health_score_avg": 74},
+                        "children": [
+                            {
+                                "name": "src",
+                                "path": "src",
+                                "type": "directory",
+                                "stats": {
+                                    "total_commits": 120,
+                                    "health_score_avg": 78,
+                                },
+                                "children": [
+                                    {
+                                        "name": "main.py",
+                                        "path": "src/main.py",
+                                        "type": "file",
+                                        "value": 18,
+                                        "attributes": {
+                                            "health_score": 85,
+                                            "health_category": "healthy",
+                                            "bus_factor_status": "low-risk",
+                                            "churn_rate": 0.042,
+                                            "primary_author_id": "alice_smith",
+                                            "last_modified_age_days": 2.5,
+                                            "created_at_iso": "2024-01-10T08:00:00+00:00",
+                                        },
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                },
+            ),
+            "file_metrics_index": (
+                "Flat `path → metrics` index for O(1) lookup. Powers the Detail Panel with per-file volume, coupling partners, and lifecycle state.",
+                {
+                    "src/main.py": {
+                        "identifiers": {
+                            "author_ids": ["alice_smith_alice", "bob_jones_bob"],
+                            "primary_author_id": "alice_smith_alice",
+                            "primary_author_percentage": 0.67,
+                        },
+                        "volume": {
+                            "lines_added": 420,
+                            "lines_deleted": 110,
+                            "net_change": 310,
+                            "total_commits": 18,
+                        },
+                        "coupling": {
+                            "max_strength": 0.72,
+                            "top_partners": [
+                                {"path": "src/utils.py", "strength": 0.72},
+                                {"path": "tests/test_main.py", "strength": 0.38},
+                            ],
+                        },
+                        "lifecycle": {
+                            "created_iso": "2024-01-10T08:00:00+00:00",
+                            "last_modified_iso": "2024-04-12T13:14:18+00:00",
+                            "is_dormant": False,
+                        },
+                    }
+                },
+            ),
+            "temporal_activity_map": (
+                "Weekly activity heatmap matrix keyed by directory. Each week maps to `[commits, lines_changed, unique_authors]`.",
+                {
+                    "meta": {
+                        "granularity": "week",
+                        "start_date": "2024-W02",
+                        "end_date": "2024-W15",
+                        "data_schema": [
+                            "commits",
+                            "lines_changed",
+                            "unique_authors",
+                        ],
+                    },
+                    "data": {
+                        "src": {
+                            "2024-W02": [4, 185, 2],
+                            "2024-W03": [1, 23, 1],
+                            "2024-W15": [3, 92, 2],
+                        },
+                        "tests": {"2024-W03": [2, 67, 1], "2024-W15": [1, 14, 1]},
+                    },
+                },
+            ),
+        }
+        return schemas.get(name)
+
     def generate(self, output_filename: str = "dataset_metadata.md"):
         """Generate the markdown report."""
         report_path = self.output_dir / output_filename
@@ -2075,40 +2369,18 @@ class MetadataReportGenerator:
             lines.append(f"**Size:** {full_path.stat().st_size:,} bytes")
             lines.append("")
 
+            schema = self._get_dataset_schema(name)
+            if schema:
+                description, example = schema
+                lines.append(description)
+                lines.append("")
+                lines.append("```json")
+                lines.append(json.dumps(example, indent=2))
+                lines.append("```")
+                lines.append("")
+
         lines.extend(
             [
-                "---",
-                "",
-                "## 🔍 Enhanced Metadata Example",
-                "",
-                "Each commit in `file_lifecycle.json` now includes:",
-                "",
-                "```json",
-                "{",
-                '  "commit_hash": "abc123...",',
-                '  "timestamp": 1712927658,',
-                '  "datetime": "2024-04-12T13:14:18+00:00",',
-                '  "operation": "M",',
-                '  "author_name": "John Doe",',
-                '  "author_email": "john@example.com",',
-                '  "author_id": "john_doe_john",',
-                '  "author_domain": "example.com",',
-                '  "temporal": {',
-                '    "year": 2024,',
-                '    "quarter": 2,',
-                '    "month": 4,',
-                '    "week_no": 15,',
-                '    "day_of_week": 4,',
-                '    "day_of_year": 103',
-                "  },",
-                '  "lines_added": 15,',
-                '  "lines_deleted": 3,',
-                '  "sequence": 42,',
-                '  "is_first": false,',
-                '  "is_last": false',
-                "}",
-                "```",
-                "",
                 "---",
                 "",
                 "## 📖 Usage Notes",

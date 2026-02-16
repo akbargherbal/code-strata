@@ -1,8 +1,10 @@
 ### 1. `project_hierarchy.json`
+
 **Purpose:** Powers the **Treemap Explorer**.
 **Requirement:** A fully recursive, nested JSON structure. The frontend should simply pass this object to D3 without any parsing, sorting, or tree-building logic.
 
 #### JSON Structure
+
 ```json
 {
   "meta": {
@@ -32,7 +34,7 @@
             "name": "App.tsx",
             "path": "src/App.tsx",
             "type": "file",
-            "value": 150, 
+            "value": 150,
             "attributes": {
               "health_score": 45,
               "health_category": "critical",
@@ -52,19 +54,22 @@
 ```
 
 #### Field Definitions
-*   **`value`**: The integer used to size the Treemap cell (usually `total_commits`).
-*   **`attributes.health_score`**: An integer (0-100) pre-calculated by the backend.
-*   **`attributes.health_category`**: One of `"healthy"`, `"medium"`, `"critical"`.
-*   **`attributes.bus_factor_status`**: One of `"low-risk"`, `"medium-risk"`, `"high-risk"`.
-*   **`attributes.churn_rate`**: A float (0.0 - 1.0) representing code turbulence.
+
+- **`value`**: The integer used to size the Treemap cell (usually `total_commits`).
+- **`attributes.health_score`**: An integer (0-100) pre-calculated by the backend.
+- **`attributes.health_category`**: One of `"healthy"`, `"medium"`, `"critical"`.
+- **`attributes.bus_factor_status`**: One of `"low-risk"`, `"medium-risk"`, `"high-risk"`.
+- **`attributes.churn_rate`**: A float (0.0 - 1.0) representing code turbulence.
 
 ---
 
 ### 2. `file_metrics_index.json`
+
 **Purpose:** Powers the **Detail Panel** and **Tooltips**.
 **Requirement:** A flat Key-Value map for O(1) lookup. This prevents the hierarchy file from becoming too bloated with details that are only needed when a user clicks a file.
 
 #### JSON Structure
+
 ```json
 {
   "src/App.tsx": {
@@ -83,7 +88,7 @@
       "max_strength": 0.75,
       "top_partners": [
         { "path": "src/components/Button.tsx", "strength": 0.75 },
-        { "path": "src/utils/helpers.ts", "strength": 0.40 },
+        { "path": "src/utils/helpers.ts", "strength": 0.4 },
         { "path": "src/types.ts", "strength": 0.25 }
       ]
     },
@@ -100,17 +105,20 @@
 ```
 
 #### Field Definitions
-*   **`identifiers`**: Uses the normalized `author_id` from Phase 5, not raw email strings.
-*   **`volume`**: Exact line counts (derived from the new diff stats).
-*   **`coupling`**: Pre-calculated top 5-10 coupled files. This removes the need for the frontend to load the entire network graph and traverse edges.
+
+- **`identifiers`**: Uses the normalized `author_id` from Phase 5, not raw email strings.
+- **`volume`**: Exact line counts (derived from the new diff stats).
+- **`coupling`**: Pre-calculated top 5-10 coupled files. This removes the need for the frontend to load the entire network graph and traverse edges.
 
 ---
 
 ### 3. `temporal_activity_map.json`
+
 **Purpose:** Powers the **Timeline Heatmap**.
 **Requirement:** A pre-aggregated time-series matrix. The frontend should not have to iterate over raw events to count commits per week.
 
 #### JSON Structure
+
 ```json
 {
   "meta": {
@@ -121,7 +129,7 @@
   },
   "data": {
     "src/components": {
-      "2024-W01": [5, 120, 2], 
+      "2024-W01": [5, 120, 2],
       "2024-W02": [12, 450, 3],
       "2024-W03": [0, 0, 0],
       "2024-W04": [8, 80, 1]
@@ -135,12 +143,13 @@
 ```
 
 #### Field Definitions
-*   **Keys (`src/components`)**: Directory paths.
-*   **Sub-Keys (`2024-W01`)**: ISO 8601 Year-Week format.
-*   **Values (`[5, 120, 2]`)**: An array corresponding to `data_schema`:
-    1.  Total Commits in that week.
-    2.  Total Lines Changed (Added + Deleted) in that week.
-    3.  Count of Unique Authors in that week.
+
+- **Keys (`src/components`)**: Directory paths.
+- **Sub-Keys (`2024-W01`)**: ISO 8601 Year-Week format.
+- **Values (`[5, 120, 2]`)**: An array corresponding to `data_schema`:
+  1.  Total Commits in that week.
+  2.  Total Lines Changed (Added + Deleted) in that week.
+  3.  Count of Unique Authors in that week.
 
 ---
 
@@ -149,16 +158,16 @@
 To generate these files, the backend must perform the following logic that is currently done in the browser:
 
 1.  **Health Scoring**:
-    *   Calculate a 0-100 score for every file based on Churn, Age, and Author Diversity.
-    *   Assign categorical labels ("critical", "healthy").
+    - Calculate a 0-100 score for every file based on Churn, Age, and Author Diversity.
+    - Assign categorical labels ("critical", "healthy").
 
 2.  **Tree Construction**:
-    *   Convert the flat list of file paths into the recursive `children` array structure.
-    *   Aggregate stats (like total commits) from files up to their parent directories.
+    - Convert the flat list of file paths into the recursive `children` array structure.
+    - Aggregate stats (like total commits) from files up to their parent directories.
 
 3.  **Coupling Analysis**:
-    *   Identify the top N coupled partners for every file and store them directly in the file's record (so the frontend doesn't need the full graph).
+    - Identify the top N coupled partners for every file and store them directly in the file's record (so the frontend doesn't need the full graph).
 
 4.  **Temporal Aggregation**:
-    *   Group all raw events by Directory AND Week.
-    *   Sum the metrics (commits, lines, authors) for each group.
+    - Group all raw events by Directory AND Week.
+    - Sum the metrics (commits, lines, authors) for each group.
